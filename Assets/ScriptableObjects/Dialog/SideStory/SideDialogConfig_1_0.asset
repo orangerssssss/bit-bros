@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ae80d34c3c968a646a29d7877872a6eb, type: 3}
+  m_Name: SideDialogConfig_1_0
+  m_EditorClassIdentifier: 
+  contents:
+  - name: "\u4E9A\u745F"
+    content: "\u6211\u662F\u6751\u91CC\u7684\u730E\u6237\uFF0C\u8BF7\u95EE\u4F60\u4EEC\u662F\u4EC0\u4E48\u4EBA\uFF1F\u4ECE\u54EA\u91CC\u6765\u7684\uFF1F"
+  - name: "\u8499\u9762\u6B66\u58EB"
+    content: "\u6211\u4EEC\u662F\u730E\u4EBA\uFF0C\u56DE\u4F60\u7684\u6751\u5B50\u91CC\u53BB\uFF0C\u4E0D\u8981\u63A2\u5934\u63A2\u8111\u7684\u3002"
+  nextDialog:
+  - optionName: "\u7EE7\u7EED\u524D\u8FDB"
+    dialog: {fileID: 11400000, guid: 996abc04fbf35f24586e327035447756, type: 2}
+  - optionName: "\u79BB\u5F00"
+    dialog: {fileID: 0}

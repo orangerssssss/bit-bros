@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ae80d34c3c968a646a29d7877872a6eb, type: 3}
+  m_Name: DialogConfig_VillageTrader
+  m_EditorClassIdentifier: 
+  contents:
+  - name: "\u94C1\u5320"
+    content: "\u6709\u4EC0\u4E48\u4E8B\u5417\uFF1F"
+  nextDialog:
+  - optionName: "\u8D2D\u4E70"
+    dialog: {fileID: 11400000, guid: ab55638a76fc5274b867b7f5ec1cf075, type: 2}
+  - optionName: "\u51FA\u552E"
+    dialog: {fileID: 11400000, guid: 1a7b112de8a0d0a4c97ebdf71f74d7ce, type: 2}
+  - optionName: "\u518D\u89C1"
+    dialog: {fileID: 0}
+  dialogEvent: 
