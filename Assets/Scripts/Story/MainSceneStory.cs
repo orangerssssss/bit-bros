@@ -66,6 +66,8 @@ public class MainSceneStory : MonoBehaviour
     public Transform beforeReportPosition;
     public Transform beforeInvasionPosition;
     public Transform invasionEndChatPoint;
+    public Transform caveEntry;
+    public Transform caveExit;
 
     [Header("物体")]
     public GameObject firstWeapon;
@@ -79,6 +81,7 @@ public class MainSceneStory : MonoBehaviour
     public GameObject invasionDrops;
     public GameObject levelEnd;
     public GameObject cemeteryNPCs;
+    public GameObject caveTriggerPoint;
 
     [Header("计时器")]
     public StoryTimer storyTimer;
@@ -87,8 +90,7 @@ public class MainSceneStory : MonoBehaviour
     [Header("祭坛")]
     public DialogConfig sideDialog_0_0;
     public DialogConfig sideDialog_0_2;
-    public Transform caveEntry;
-    public Transform caveExit;
+
     public Transform mark_side0;
 
     [Header("入口营地")]
@@ -162,7 +164,7 @@ public class MainSceneStory : MonoBehaviour
     /// </summary>
     private void UpdateStory()
     {
-        switch(storyProcess)
+        switch (storyProcess)
         {
             case 0:// 背景
                 storySetting.Show();
@@ -170,17 +172,16 @@ public class MainSceneStory : MonoBehaviour
 
                 GameEventManager.Instance.storySettingEndEvent.AddListener(storyListener.StoryProcess0_0);
                 break;
-            case 1:
-                GameUIManager.Instance.mainTaskTip.UpdateTask("见艾克特村长", "艾克特村长正在找你，似乎有些事情。快过去见他吧。");
-                ectorNPC.AddSpecialDialog(MainSceneStory.Instance.dialog_1_0);
-                GameUIManager.Instance.controlTip.ShowTip("'WSAD' 移动\n‘鼠标’ 控制视角\n‘左SHIFT+方向键’ 奔跑\n‘Space’ 翻滚\n‘E’ 视角方向交互");
-                GameUIManager.Instance.destinationMark.SetTarget(mark_ector);
-
-                GameEventManager.Instance.dialogConfigEndEvent.AddListener(storyListener.StoryProcess1_0);
+            case 1://进入山洞
+                GameUIManager.Instance.mainTaskTip.UpdateTask("探索山洞", "进入山洞深处，找到可以探索的位置。");
+                if (caveTriggerPoint != null) caveTriggerPoint.SetActive(true);
+                if (caveEntry != null) GameUIManager.Instance.destinationMark.SetTarget(caveEntry);
+                // SimpleTrigger 脚本会在玩家进入时直接调用 CompleteCaveTask()
                 break;
+
             case 2:// 狩猎
-                GameUIManager.Instance.mainTaskTip.UpdateTask("打猎", "村里食物不多，需要打些猎物回来，去铁匠铺旁获取新武器。");
-                
+                GameUIManager.Instance.mainTaskTip.UpdateTask("和陌生人对话", "那里似乎站着一个神秘的陌生人，去问问他是谁");
+
                 firstWeapon.SetActive(true);
                 merlinHunt.SetActive(true);
                 //MainSceneStory.Instance.startNPC.SetActive(false);
@@ -292,7 +293,7 @@ public class MainSceneStory : MonoBehaviour
         color.a = 0;
         blackImage.color = color;
 
-        while(color.a < 1.0f)
+        while (color.a < 1.0f)
         {
             color.a += Time.deltaTime * 2.5f;
             blackImage.color = color;
@@ -301,7 +302,7 @@ public class MainSceneStory : MonoBehaviour
 
         yield return new WaitForSeconds(0.4f);
 
-        while(color.a > 0)
+        while (color.a > 0)
         {
             color.a -= Time.deltaTime * 2.5f;
             blackImage.color = color;
@@ -316,7 +317,7 @@ public class MainSceneStory : MonoBehaviour
     public void Chat(DialogObject dialogObject)
     {
         if (!dialogObject.gameObject.activeSelf) dialogObject.gameObject.SetActive(true);
-         dialogObject.Interact();
+        dialogObject.Interact();
     }
 
     /// <summary>
@@ -365,5 +366,21 @@ public class MainSceneStory : MonoBehaviour
         storyAudioSource.Stop();
         storyAudioSource.clip = bgms[2];
         storyAudioSource.Play();
+    }
+
+    public void CompleteCaveTask()
+    {
+        if (storyListener != null)
+            storyListener.OnCaveEntered();
+        else
+            DriveProcess(); // 直接推进，不经过 listener
+    }
+
+    public void CompleteExitTask()
+    {
+        if (storyListener != null)
+            storyListener.OnExitReached();
+        else
+            DriveProcess();
     }
 }

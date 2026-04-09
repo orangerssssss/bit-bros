@@ -8,6 +8,18 @@ using UnityEngine.Playables;
 /// </summary>
 public class StoryListener
 {
+
+    public void OnCaveEntered()
+    {
+        Debug.Log("进入山洞触发器");
+        MainSceneStory.Instance.DriveProcess();  // 推进到任务2
+    }
+
+    public void OnExitReached()
+    {
+        Debug.Log("到达出口触发器");
+        MainSceneStory.Instance.DriveProcess();  // 推进到任务完成
+    }
     /// <summary>
     /// 故事背景展示完毕，自动开始与村民的对话
     /// </summary>
@@ -82,7 +94,7 @@ public class StoryListener
 
             GameEventManager.Instance.dialogConfigEndEvent.AddListener(StoryProcess2_2);
         }
-            
+
     }
 
     /// <summary>
