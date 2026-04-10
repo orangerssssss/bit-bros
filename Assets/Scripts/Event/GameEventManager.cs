@@ -45,4 +45,5 @@ public class GameEventManager : MonoBehaviour
     public UnityEvent sellEvent = new UnityEvent();
     //public UnityEvent<DialogObject> dialogEndEvent = new UnityEvent<DialogObject>();
     //public UnityEvent<int> playerEquipEvent = new UnityEvent<int>();
+    public UnityEvent<Collider> playerEnterTriggerEvent;   // 参数为触发器碰撞体
 }
