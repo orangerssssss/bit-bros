@@ -179,7 +179,7 @@ public class MainSceneStory : MonoBehaviour
                 // SimpleTrigger 脚本会在玩家进入时直接调用 CompleteCaveTask()
                 break;
 
-            case 2:// 狩猎
+            case 2:// 和陌生人对话
                 GameUIManager.Instance.mainTaskTip.UpdateTask("和陌生人对话", "那里似乎站着一个神秘的陌生人，去问问他是谁");
 
                 firstWeapon.SetActive(true);
