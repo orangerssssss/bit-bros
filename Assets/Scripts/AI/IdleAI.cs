@@ -25,7 +25,11 @@ public class IdleAI : MonoBehaviour
 
     private void Awake()
     {
-        if (player == null) player = GameObject.FindGameObjectWithTag("Player").transform;
+        if (player == null)
+        {
+            var pgo = GameObject.FindGameObjectWithTag("Player");
+            if (pgo != null) player = pgo.transform;
+        }
         animator = GetComponent<Animator>();
         agent = GetComponent<NavMeshAgent>();
 
@@ -40,20 +44,25 @@ public class IdleAI : MonoBehaviour
     {
         isChat = false;
         isAnim = false;
-        agent.isStopped = false;
+        if (agent != null && agent.isOnNavMesh) agent.isStopped = false;
         idlePointsIndex = 0;
 
         if (idlePoints != null && idlePoints.Count > 0)
         {
             transform.position = idlePoints[idlePointsIndex].point.position;
-            agent.destination = idlePoints[idlePointsIndex].point.position;
+            if (agent != null && agent.isOnNavMesh) agent.destination = idlePoints[idlePointsIndex].point.position;
             idleTimer = idlePoints[idlePointsIndex].idleTime;
         }
     }
 
     private void Update()
     {
-        if (agent.isStopped)
+        if (agent == null || !agent.isOnNavMesh)
+        {
+            // no navmesh agent available, treat as stopped
+            transform.rotation = transform.rotation;
+        }
+        else if (agent.isStopped)
         {
             // 对话状态，NPC朝向目标方向
             transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation, Time.deltaTime * 3.5f);
@@ -65,7 +74,12 @@ public class IdleAI : MonoBehaviour
         }
 
         // 更新动画机中的移动速度为寻路的移动速度
-        if (idlePoints != null && idlePoints.Count > 0) animator.SetFloat("MoveSpeed", agent.velocity.magnitude);
+        if (idlePoints != null && idlePoints.Count > 0)
+        {
+            float vel = 0f;
+            if (agent != null && agent.isOnNavMesh) vel = agent.velocity.magnitude;
+            animator.SetFloat("MoveSpeed", vel);
+        }
     }
 
     /// <summary>
@@ -115,9 +129,10 @@ public class IdleAI : MonoBehaviour
         if (!isAnim)
         {
             StopCoroutine("StartAgent");
-            agent.isStopped = true;
+            if (agent != null && agent.isOnNavMesh) agent.isStopped = true;
 
-            Vector3 dir = player.position - transform.position;
+            Vector3 dir = Vector3.zero;
+            if (player != null) dir = player.position - transform.position;
             dir.y = 0;
             targetRotation.SetLookRotation(dir, Vector3.up);
         }
@@ -147,7 +162,7 @@ public class IdleAI : MonoBehaviour
         {
             yield return new WaitForSeconds(2.0f);
         }
-        agent.isStopped = false;
+        if (agent != null && agent.isOnNavMesh) agent.isStopped = false;
     }
 
     /// <summary>
@@ -158,8 +173,11 @@ public class IdleAI : MonoBehaviour
         if (!isChat)
         {
             isAnim = true;
-            agent.isStopped = true;
-            agent.velocity = Vector3.zero;
+            if (agent != null && agent.isOnNavMesh)
+            {
+                agent.isStopped = true;
+                agent.velocity = Vector3.zero;
+            }
 
             // 将NPC朝向设置为待机点的朝向
             targetRotation = idlePoints[idlePointsIndex].point.rotation;

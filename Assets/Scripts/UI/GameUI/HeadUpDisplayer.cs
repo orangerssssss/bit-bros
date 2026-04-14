@@ -20,6 +20,11 @@ public class HeadUpDisplayer : MonoBehaviour
     private void Awake()
     {
         playerAttributes = GetComponent<PlayerAttributes>();
+        if (playerAttributes == null)
+        {
+            var p = GameObject.FindWithTag("Player");
+            if (p != null) playerAttributes = p.GetComponent<PlayerAttributes>();
+        }
     }
 
     private void Update()
@@ -35,10 +40,11 @@ public class HeadUpDisplayer : MonoBehaviour
     /// </summary>
     private void LevelUpdate()
     {
+        if (playerAttributes == null || GameUIManager.Instance == null) return;
         if (level != playerAttributes.level)
         {
             level = playerAttributes.level;
-            GameUIManager.Instance.level.text = "Lv." + level.ToString();
+            if (GameUIManager.Instance.level != null) GameUIManager.Instance.level.text = "Lv." + level.ToString();
         }
     }
 
@@ -47,16 +53,18 @@ public class HeadUpDisplayer : MonoBehaviour
     /// </summary>
     private void HealthUpdate()
     {
+        if (playerAttributes == null || GameUIManager.Instance == null) return;
 
         if (health != playerAttributes.health || maxHealth != playerAttributes.MaxHealth)
         {
             health = playerAttributes.health;
             maxHealth = playerAttributes.MaxHealth;
-            GameUIManager.Instance.healthBar.value = (float)health / maxHealth;
-            GameUIManager.Instance.healthText.text = $"生命：{health} / {maxHealth}";
+            if (GameUIManager.Instance.healthBar != null) GameUIManager.Instance.healthBar.value = (float)health / maxHealth;
+            if (GameUIManager.Instance.healthText != null) GameUIManager.Instance.healthText.text = $"生命：{health} / {maxHealth}";
         }
-        
-        GameUIManager.Instance.healthBarSlow.value = Mathf.Lerp(GameUIManager.Instance.healthBarSlow.value, (float)health / maxHealth, 1.5f * Time.deltaTime);
+
+        if (GameUIManager.Instance.healthBarSlow != null)
+            GameUIManager.Instance.healthBarSlow.value = Mathf.Lerp(GameUIManager.Instance.healthBarSlow.value, (float)health / maxHealth, 1.5f * Time.deltaTime);
     }
 
     /// <summary>
@@ -64,12 +72,13 @@ public class HeadUpDisplayer : MonoBehaviour
     /// </summary>
     private void ExpUpdate()
     {
+        if (playerAttributes == null || GameUIManager.Instance == null) return;
         if (exp != playerAttributes.experience || maxExp != playerAttributes.GetMaxExperience())
         {
             exp = playerAttributes.experience;
             maxExp = playerAttributes.GetMaxExperience();
-            GameUIManager.Instance.expBar.value = (float)exp / maxExp;
-            GameUIManager.Instance.expText.text = $"经验：{exp} / {maxExp}";
+            if (GameUIManager.Instance.expBar != null) GameUIManager.Instance.expBar.value = (float)exp / maxExp;
+            if (GameUIManager.Instance.expText != null) GameUIManager.Instance.expText.text = $"经验：{exp} / {maxExp}";
         }
     }
 
@@ -78,12 +87,13 @@ public class HeadUpDisplayer : MonoBehaviour
     /// </summary>
     private void ManaUpdate()
     {
+        if (playerAttributes == null || GameUIManager.Instance == null) return;
         if (mana != playerAttributes.mana || maxMana != playerAttributes.MaxMana)
         {
             mana = playerAttributes.mana;
             maxMana = playerAttributes.MaxMana;
-            GameUIManager.Instance.manaBar.value = (float)mana / maxMana;
-            GameUIManager.Instance.manaText.text = $"魔法：{mana} / {maxMana}";
+            if (GameUIManager.Instance.manaBar != null) GameUIManager.Instance.manaBar.value = (float)mana / maxMana;
+            if (GameUIManager.Instance.manaText != null) GameUIManager.Instance.manaText.text = $"魔法：{mana} / {maxMana}";
         }
     }
 }

@@ -16,6 +16,8 @@ public class ViewController : MonoBehaviour
 
     private Vector3 lookRotationEuler;// 朝向的欧拉角
 
+    private bool loggedViewControlDisabled = false;
+
     [SerializeField]
     private float sensitivityMouseX = 2.5f;// 鼠标旋转X轴灵敏度
     [SerializeField]
@@ -34,6 +36,7 @@ public class ViewController : MonoBehaviour
     private void Awake()
     {
         Init();
+        Debug.Log($"ViewController Awake: followingCameraParent={(followingCameraParent!=null?followingCameraParent.name:"null")}, playerVCamera={(playerVCamera!=null?playerVCamera.name:"null")}");
     }
 
     private void LateUpdate()
@@ -89,10 +92,26 @@ public class ViewController : MonoBehaviour
             // 视角赋值
             followingCameraParent.rotation = Quaternion.Euler(lookRotationEuler);
         }
+        else
+        {
+            if (!loggedViewControlDisabled)
+            {
+                Debug.Log("ViewController.viewControllable is false");
+                loggedViewControlDisabled = true;
+            }
+        }
 
         // 控制视角远近
         if (viewControllable)
             viewDistance = Mathf.Clamp(viewDistance - Input.GetAxisRaw("Mouse ScrollWheel") * 4, viewDistanceMin, viewDistanceMax);
+        else
+        {
+            // also log raw axis values when disabled to check if input is coming
+            if (Input.GetAxisRaw("Mouse X") != 0 || Input.GetAxisRaw("Mouse Y") != 0)
+            {
+                Debug.Log($"Mouse axes while view disabled: MouseX={Input.GetAxisRaw("Mouse X")}, MouseY={Input.GetAxisRaw("Mouse Y")}");
+            }
+        }
         playerVCamera.position = Vector3.Lerp(playerVCamera.position, followingCameraParent.position - playerVCamera.forward * viewDistance, viewLerpSpeed);
 
         // 射线检测, 判断视线是否被遮挡

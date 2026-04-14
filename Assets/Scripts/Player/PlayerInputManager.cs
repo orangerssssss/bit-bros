@@ -29,10 +29,12 @@ public class PlayerInputManager : MonoBehaviour
         viewController = GetComponent<ViewController>();
         interactDetect = GetComponent<InteractDetect>();
         combatController = GetComponent<PlayerCombatController>();
+        Debug.Log($"PlayerInputManager Awake: moveController={(moveController!=null)}, viewController={(viewController!=null)}, interactDetect={(interactDetect!=null)}, combatController={(combatController!=null)}");
     }
 
     private void Start()
     {
+        Debug.Log($"PlayerInputManager Start: viewControllable={(viewController!=null?viewController.viewControllable.ToString():"no viewController")}");
         OpenAllInput();
     }
 
@@ -41,6 +43,7 @@ public class PlayerInputManager : MonoBehaviour
     /// </summary>
     public void OpenAllInput()
     {
+        Debug.Log("PlayerInputManager.OpenAllInput called");
         moveController.playerMoveControllable = true;
         viewController.viewControllable = true;
         interactDetect.SetInteractable(true);
@@ -59,6 +62,7 @@ public class PlayerInputManager : MonoBehaviour
     /// <param name="cursorVisible">鼠标是否可见</param>
     public void CloseAllInput(bool cursorVisible)
     {
+        Debug.Log("PlayerInputManager.CloseAllInput called, cursorVisible=" + cursorVisible);
         moveController.playerMoveControllable = false;
         viewController.viewControllable = false;
         interactDetect.SetInteractable(false);

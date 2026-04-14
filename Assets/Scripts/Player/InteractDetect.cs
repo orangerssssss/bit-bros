@@ -23,13 +23,17 @@ public class InteractDetect : MonoBehaviour
     private void Awake()
     {
         viewController = GetComponent<ViewController>();
-        GameEventManager.Instance.pickUpItemEvent.AddListener((id) => PlayPickUpItemSFX());
+        if (GameEventManager.Instance != null)
+            GameEventManager.Instance.pickUpItemEvent.AddListener((id) => PlayPickUpItemSFX());
     }
 
     private void Start()
     {
-        interactLabel = GameUIManager.Instance.interact;
-        interactTextLabel = GameUIManager.Instance.interactTextLabel;
+        if (GameUIManager.Instance != null)
+        {
+            interactLabel = GameUIManager.Instance.interact;
+            interactTextLabel = GameUIManager.Instance.interactTextLabel;
+        }
     }
 
     private void Update()
@@ -55,6 +59,7 @@ public class InteractDetect : MonoBehaviour
     public void DetectInteractiveObject()
     {
         if (!viewController) return;
+        if (viewController.playerViewPoint == null || viewController.playerVCamera == null) return;
 
         // 从屏幕中央向屏幕内发出一段射线, 检测是否有可交互物体
         InteractiveObject obj = null;
@@ -67,12 +72,12 @@ public class InteractDetect : MonoBehaviour
         if (obj == null || !obj.enabled)
         {
             obj = null;
-            if (interactLabel.activeSelf) interactLabel.SetActive(false);
+            if (interactLabel != null && interactLabel.activeSelf) interactLabel.SetActive(false);
         }
         else
         {
-            interactTextLabel.text = obj.interactName;
-            if (!interactLabel.activeSelf) interactLabel.SetActive(true);
+            if (interactTextLabel != null) interactTextLabel.text = obj.interactName;
+            if (interactLabel != null && !interactLabel.activeSelf) interactLabel.SetActive(true);
         }
 
         if (interactiveObject != obj) interactiveObject = obj;
