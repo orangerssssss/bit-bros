@@ -58,14 +58,30 @@ public class DialogDisplayer : MonoBehaviour
         continueTip = GameUIManager.Instance.dialogContinueTip;
         dialogSkipButton = GameUIManager.Instance.dialogSkipButton;
 
-        dialogNextButton.onClick.AddListener(() => DialogNext());
-        dialogSkipButton.onClick.AddListener(SkipDialog);
+        if (dialogNextButton != null)
+            dialogNextButton.onClick.AddListener(() => DialogNext());
+        else
+            Debug.LogWarning("DialogDisplayer.Start: dialogNextButton is null");
 
-        // 添加选项的点击事件
-        for (int i = 0; i < optionLabel.childCount; i++)
+        if (dialogSkipButton != null)
+            dialogSkipButton.onClick.AddListener(SkipDialog);
+        else
+            Debug.LogWarning("DialogDisplayer.Start: dialogSkipButton is null");
+
+        // 添加选项的点击事件（带空值保护）
+        if (optionLabel != null)
         {
-            int index = i;
-            optionLabel.GetChild(i).GetComponent<Button>().onClick.AddListener(delegate () { OptionSelect(index); });
+            for (int i = 0; i < optionLabel.childCount; i++)
+            {
+                int index = i;
+                var btn = optionLabel.GetChild(i).GetComponent<Button>();
+                if (btn != null)
+                    btn.onClick.AddListener(delegate () { OptionSelect(index); });
+            }
+        }
+        else
+        {
+            Debug.LogWarning("DialogDisplayer.Start: optionLabel is null");
         }
     }
 
@@ -84,11 +100,37 @@ public class DialogDisplayer : MonoBehaviour
             dialogCfg = defaultDialogConfig;
         }
 
-
         // 标记对话开始
         isDialog = true;
 
-        // 关闭玩家的移动控制和视角控制
+        // 确保对话UI组件已准备好，防止在UI未初始化时关闭玩家输入导致无法交互
+        if (dialogUIObject == null && GameUIManager.Instance != null)
+            dialogUIObject = GameUIManager.Instance.dialog;
+        if (dialogNextButton == null && GameUIManager.Instance != null)
+            dialogNextButton = GameUIManager.Instance.dialogNextButton;
+
+        // 如果dialogUIObject存在但dialogNextButton为空，尝试在dialogUIObject里查找第一个Button作为回退
+        int buttonsFound = 0;
+        if (dialogUIObject != null && dialogNextButton == null)
+        {
+            var buttons = dialogUIObject.GetComponentsInChildren<UnityEngine.UI.Button>(true);
+            if (buttons != null && buttons.Length > 0)
+            {
+                dialogNextButton = buttons[0];
+                buttonsFound = buttons.Length;
+            }
+        }
+
+        if (dialogUIObject == null)
+        {
+            Debug.LogError("DialogDisplayer.StartDialog: dialog UI not found. Aborting dialog start and leaving player input enabled.");
+            isDialog = false;
+            return;
+        }
+
+        Debug.Log($"DialogDisplayer.StartDialog: dialogUIObject={(dialogUIObject!=null)}, dialogNextButton={(dialogNextButton!=null)}, buttonsFound={buttonsFound}, EventSystem={(UnityEngine.EventSystems.EventSystem.current!=null)}");
+
+        // 关闭玩家的移动控制和视角控制（在确认UI存在后执行）
         GameMenu.Instance.CloseMenu();
         PlayerInputManager.Instance.CloseAllInput(true);
 
@@ -110,6 +152,18 @@ public class DialogDisplayer : MonoBehaviour
 
         // 显示下一对话文本
         DialogNext();
+    }
+
+    private void Update()
+    {
+        // Fallback: jika UI tombol tidak merespon, izinkan klik kiri atau Space/Enter untuk lanjutkan dialog
+        if (isDialog)
+        {
+            if (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return))
+            {
+                DialogNext();
+            }
+        }
     }
 
     /// <summary>

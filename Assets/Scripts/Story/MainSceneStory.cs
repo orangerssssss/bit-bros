@@ -120,6 +120,9 @@ public class MainSceneStory : MonoBehaviour
     public Transform mark_villagePath;
 
     private StoryListener storyListener = new StoryListener();
+    // When false, story dialogs won't be auto-triggered by pick-up events.
+    // Set true only if you want the original auto-dialog behavior.
+    public bool autoPickupStoryDialog = false;
     [HideInInspector] public int pickMealCount = 3;
     [HideInInspector] public int playerDeathCount = 1;
     [HideInInspector] public int enemyDeathCount = 5;
@@ -187,7 +190,7 @@ public class MainSceneStory : MonoBehaviour
                 //MainSceneStory.Instance.startNPC.SetActive(false);
                 GameUIManager.Instance.destinationMark.SetTarget(mark_firstWeapon, 1.0f);
 
-                GameEventManager.Instance.pickUpItemEvent.AddListener(storyListener.StoryProcess2_0);
+                if (autoPickupStoryDialog) GameEventManager.Instance.pickUpItemEvent.AddListener(storyListener.StoryProcess2_0);
                 break;
             case 3:// 告示
                 GameUIManager.Instance.mainTaskTip.UpdateTask("查看告示", "村口的告示牌似乎张贴了新的告示，前去查看张贴了什么吧。");
@@ -242,7 +245,7 @@ public class MainSceneStory : MonoBehaviour
                 invasionDrops.SetActive(true);
                 GameUIManager.Instance.destinationMark.SetTarget(mark_invasionDrops, 8.0f);
 
-                GameEventManager.Instance.pickUpItemEvent.AddListener(storyListener.StoryProcess7_0);
+                if (autoPickupStoryDialog) GameEventManager.Instance.pickUpItemEvent.AddListener(storyListener.StoryProcess7_0);
                 break;
             case 8:// 告别
                 GameUIManager.Instance.mainTaskTip.UpdateTask("找到艾克特", "与艾克特告别。");

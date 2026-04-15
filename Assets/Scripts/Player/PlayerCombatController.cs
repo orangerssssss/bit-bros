@@ -43,12 +43,57 @@ public class PlayerCombatController : MonoBehaviour
 
         // 为动画添加武器显示事件, 玩家在释放此动画对应的技能时会让武器变为可见状态
         AddEventToClips("SetWeaponVisible", 0f, new List<string> { "CommonAttack_0", "CommonAttack_1", "CommonAttack_2" }, intParameter: 1);
+        // 如果当前没有装备武器，默认隐藏weaponParent（避免预先显示为饰品）
+        if (weaponParent != null && equipedWeaponID <= 0)
+        {
+            weaponParent.SetActive(false);
+        }
+
+        // 确保weaponModels中的模型在启动时根据equipedWeaponID处于正确的激活状态，防止作为摆设始终可见
+        if (weaponModels != null)
+        {
+            bool anyActive = false;
+            foreach (PlayerEquipmentModel model in weaponModels)
+            {
+                if (model == null || model.equipmentModel == null) continue;
+                bool shouldActive = (model.equipmentID == equipedWeaponID && equipedWeaponID > 0);
+                model.equipmentModel.SetActive(shouldActive);
+                if (shouldActive) anyActive = true;
+            }
+            if (weaponParent != null)
+                weaponParent.SetActive(anyActive);
+        }
     }
 
     private void Update()
     {
         HideWeapon();
         HitPauseUpdate();
+    }
+
+    private void OnEnable()
+    {
+        if (GameEventManager.Instance != null)
+            GameEventManager.Instance.pickUpItemEvent.AddListener(OnPickUpItem);
+    }
+
+    private void OnDisable()
+    {
+        if (GameEventManager.Instance != null)
+            GameEventManager.Instance.pickUpItemEvent.RemoveListener(OnPickUpItem);
+    }
+
+    // 当拾取物品时自动检查是否是武器，若是则切换并显示在手中
+    private void OnPickUpItem(int itemID)
+    {
+        Debug.Log("PlayerCombatController.OnPickUpItem: " + itemID);
+        if (DataManager.Instance == null || DataManager.Instance.itemConfig == null) return;
+        Item item = DataManager.Instance.itemConfig.FindItemByID(itemID);
+        if (item != null && item.itemType == ItemType.Weapon)
+        {
+            SwitchWeapon(itemID);
+            SetWeaponVisible(true);
+        }
     }
 
     private void OnDestroy()
