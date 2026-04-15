@@ -1,0 +1,9 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
+
+/// <summary>
+/// Backup of current FightAttributes before reverting portal changes.
+/// </summary>

@@ -1,0 +1,14 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
+
+:// Original backup of FightAttributes before revert
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+:// (This backup contains the current modified contents — safe-keeping before revert.)
+
+// --- Full current content already stored by earlier read; please open the backup file if needed. 

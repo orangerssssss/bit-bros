@@ -1,0 +1,158 @@
+using System;
+using System.Collections;
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class EnemyHeadDisplayer : MonoBehaviour
+{
+    private static Transform mainCamera;
+    private FightAttributes enemyAttributes;
+    
+    [SerializeField] private float showTime = 6.0f;
+    [SerializeField] private GameObject state;
+    [SerializeField] private Text stateText;
+    [SerializeField] private Slider healthBar;
+    [SerializeField] private Slider healthBarSlow;
+
+    [Header("Death & Portal Settings")]
+    [SerializeField] private GameObject portalPrefab;
+    [SerializeField] private Vector3 portalSpawnOffset = new Vector3(0, 1, 2);
+    [SerializeField] private float deathDelay = 0.5f;
+
+    private float targetValue;
+    private float showTimer;
+    private bool hasSpawnedPortal = false;
+
+    private void Awake()
+    {
+        if (mainCamera == null) mainCamera = Camera.main.transform;
+        enemyAttributes = GetComponent<FightAttributes>();
+    }
+
+    private void Start() => InitState();
+
+    private void Update()
+    {
+        if (state.activeSelf)
+        {
+            state.transform.LookAt(mainCamera);
+            healthBarSlow.value = Mathf.Lerp(healthBarSlow.value, targetValue, 1.5f * Time.deltaTime);
+        }
+
+        if (showTimer < 0)
+        {
+            if (state.activeSelf) state.SetActive(false);
+        }
+        else
+        {
+            showTimer -= Time.deltaTime;
+        }
+    }
+
+    public void InitState()
+    {
+        healthBar.value = 1f;
+        healthBarSlow.value = 1f;
+        targetValue = 1f;
+        if (enemyAttributes != null)
+            stateText.text = "Lv." + enemyAttributes.level + " " + enemyAttributes.fightName;
+    }
+
+    public void ShowState(float value)
+    {
+        if (!state.activeSelf) state.SetActive(true);
+        showTimer = showTime;
+        healthBar.value = value;
+        targetValue = value;
+    }
+
+    public void HideState() => state.SetActive(false);
+
+    public void OnNPCDead()
+{
+    Debug.Log($"[EnemyHeadDisplayer] OnNPCDead() START untuk {enemyAttributes?.fightName}");
+    
+    if (hasSpawnedPortal)
+    {
+        Debug.Log("Portal sudah spawn, skip.");
+        return;
+    }
+    
+    if (portalPrefab == null)
+    {
+        Debug.LogError("PORTAL PREFAB TIDAK DIASSIGN! Seret prefab portal ke Inspector NPC.");
+        return;
+    }
+    
+    Debug.Log("Portal Prefab OK, akan mulai Coroutine...");
+    hasSpawnedPortal = true;
+    StartCoroutine(SpawnPortalCoroutine());
+}
+
+    private IEnumerator SpawnPortalCoroutine()
+    {
+        Debug.Log($"Menunggu {deathDelay} detik sebelum spawn portal...");
+        yield return new WaitForSeconds(deathDelay);
+
+        Vector3 portalPos = transform.position + portalSpawnOffset;
+        Debug.Log($"Spawn portal di posisi: {portalPos}");
+
+        GameObject portalInstance = Instantiate(portalPrefab, portalPos, Quaternion.identity) as GameObject;
+        if (portalInstance == null)
+        {
+            Debug.LogError("Gagal instantiate portalPrefab — bukan GameObject.");
+            yield break;
+        }
+
+        // Jika prefab tidak aktif di asset, pastikan instance diaktifkan
+        if (!portalInstance.activeSelf)
+            portalInstance.SetActive(true);
+
+        // Coba cari tipe PortalTrigger di semua assembly (reflection) dan pasang/atur jika ada
+        System.Type ptType = null;
+        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            try
+            {
+                foreach (var t in asm.GetTypes())
+                {
+                    if (t.Name == "PortalTrigger")
+                    {
+                        ptType = t;
+                        break;
+                    }
+                }
+            }
+            catch { }
+            if (ptType != null) break;
+        }
+
+        if (ptType != null)
+        {
+            Component ptComp = portalInstance.GetComponent(ptType);
+            if (ptComp == null)
+                ptComp = portalInstance.AddComponent(ptType);
+
+            if (ptComp != null)
+            {
+                var field = ptType.GetField("sceneName");
+                if (field != null)
+                {
+                    field.SetValue(ptComp, "Scene3");
+                }
+                else
+                {
+                    var prop = ptType.GetProperty("sceneName");
+                    if (prop != null)
+                        prop.SetValue(ptComp, "Scene3", null);
+                }
+                Debug.Log("PortalTrigger terpasang pada instance portal dan sceneName di-set.");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("PortalTrigger type tidak ditemukan; portal tidak akan auto-load scene.");
+        }
+    }
+}

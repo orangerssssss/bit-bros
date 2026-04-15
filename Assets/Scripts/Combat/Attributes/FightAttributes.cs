@@ -35,18 +35,28 @@ public class FightAttributes : CharacterAttributes
     {
         if (fightAI != null) fightAI.DiedReact();
 
-
-        // 玩家获得经验值
+        // 玩家获得经验值（null-safe）
         if (combatCamp == CombatCamp.None || combatCamp == CombatCamp.Enemy)
         {
-            if (playerAttributes == null) playerAttributes = GameObject.FindGameObjectWithTag("Player").GetComponent<PlayerAttributes>();
-            playerAttributes.AddExperience(experience);
+            if (playerAttributes == null)
+            {
+                var pgo = GameObject.FindGameObjectWithTag("Player");
+                if (pgo != null) playerAttributes = pgo.GetComponent<PlayerAttributes>();
+            }
+            if (playerAttributes != null)
+            {
+                playerAttributes.AddExperience(experience);
+            }
         }
 
-        // 生成掉落物
-        GetComponent<DropItem>().Drop();
-        headDisplayer.HideState();
-        CombatCharacterManager.Instance.Unregister(this);
+        // 生成掉落物（null-safe）
+        var drop = GetComponent<DropItem>();
+        if (drop != null) drop.Drop();
+
+        if (headDisplayer != null) headDisplayer.HideState();
+
+        var ccm = CombatCharacterManager.Instance;
+        if (ccm != null) ccm.Unregister(this);
     }
 
 

@@ -1,0 +1,39 @@
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+public class PortalTrigger : MonoBehaviour
+{
+    public string sceneName = "Scene3";
+    [Tooltip("Disable portal after first use")]
+    public bool singleUse = true;
+
+    private void Start()
+    {
+        Collider col = GetComponent<Collider>();
+        if (col == null)
+        {
+            SphereCollider sc = gameObject.AddComponent<SphereCollider>();
+            sc.isTrigger = true;
+            sc.radius = 1.0f;
+        }
+        else
+        {
+            col.isTrigger = true;
+        }
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (!other.CompareTag("Player")) return;
+        Debug.Log($"PortalTrigger: player entered portal -> loading {sceneName}");
+        if (singleUse) gameObject.SetActive(false);
+        try
+        {
+            SceneManager.LoadScene(sceneName);
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError("PortalTrigger: failed to load scene '" + sceneName + "': " + ex.Message);
+        }
+    }
+}

@@ -64,28 +64,31 @@ public class FightAISoldier : FightAI
 
     private void Update()
     {
-        if (agent.enabled)
-        {
-            // 更新攻击计时器
-            attackTimer += Time.deltaTime;
+        // Guard against missing components or agents not placed on NavMesh
+        if (agent == null || animator == null || fightAttributes == null) return;
+        if (!agent.enabled) return;
+        // avoid calling NavMeshAgent operations when agent not on a NavMesh
+        if (!agent.isOnNavMesh) return;
 
-            // 在非移动状态停止寻路
-            agent.isStopped = !animator.GetCurrentAnimatorStateInfo(0).IsTag("Move");
+        // 更新攻击计时器
+        attackTimer += Time.deltaTime;
 
-            // 寻找最近的目标
-            if (fightAttributes.combatCamp == CombatCamp.Player)
-                target = CombatCharacterManager.Instance.FindNearestEnemyCampCharacter(transform.position);
-            else if (fightAttributes.combatCamp == CombatCamp.Enemy)
-                target = CombatCharacterManager.Instance.FindNearestPlayerCampCharacter(transform.position);
-            else
-                target = null;
+        // 在非移动状态停止寻路
+        agent.isStopped = !animator.GetCurrentAnimatorStateInfo(0).IsTag("Move");
 
-            // 行动
-            if (target != null) Action(target.transform.position);
+        // 寻找最近的目标
+        if (fightAttributes.combatCamp == CombatCamp.Player)
+            target = CombatCharacterManager.Instance.FindNearestEnemyCampCharacter(transform.position);
+        else if (fightAttributes.combatCamp == CombatCamp.Enemy)
+            target = CombatCharacterManager.Instance.FindNearestPlayerCampCharacter(transform.position);
+        else
+            target = null;
 
-            // 插值动画机中的移动速度为目标移动速度
-            animator.SetFloat("MoveSpeed", Mathf.Lerp(animator.GetFloat("MoveSpeed"), targetMoveSpeed, 0.1f));
-        }
+        // 行动
+        if (target != null) Action(target.transform.position);
+
+        // 插值动画机中的移动速度为目标移动速度
+        animator.SetFloat("MoveSpeed", Mathf.Lerp(animator.GetFloat("MoveSpeed"), targetMoveSpeed, 0.1f));
     }
 
     /// <summary>
@@ -114,7 +117,7 @@ public class FightAISoldier : FightAI
 
         animator.SetTrigger("Reset");
         enemyCollider.enabled = true;
-        agent.enabled = true;
+        if (agent != null) agent.enabled = true;
     }
 
     /// <summary>
@@ -245,11 +248,11 @@ public class FightAISoldier : FightAI
     /// </summary>
     private void AttackEvent()
     {
-        if (agent.enabled)
+        if (agent != null && agent.enabled && agent.isOnNavMesh)
         {
             agent.Move(transform.forward * 0.01f);
-            attackBox.AreaDamage(fightAttributes.PhysicalAttack, true);
         }
+        attackBox.AreaDamage(fightAttributes.PhysicalAttack, true);
     }
 
     private void PlayAttackSFX()

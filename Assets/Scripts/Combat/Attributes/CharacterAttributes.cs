@@ -138,11 +138,30 @@ public abstract class CharacterAttributes : MonoBehaviour
 
         if (health <= 0)
         {
-            GameEventManager.Instance.characterBeforeDeathEvent.Invoke(this);
+            // Invoke before-death event if available; otherwise fallback to local spawners
+            var gem = GameEventManager.Instance;
+            if (gem != null && gem.characterBeforeDeathEvent != null)
+            {
+                gem.characterBeforeDeathEvent.Invoke(this);
+            }
+            else
+            {
+                // fallback: if this object has SpawnPortalOnDeath, trigger immediate spawn
+                var spawner = GetComponent<SpawnPortalOnDeath>();
+                if (spawner != null)
+                {
+                    spawner.TriggerPortalSpawnImmediate();
+                }
+            }
+
             if (health <= 0)
             {
                 DeathReact();
-                CombatCharacterManager.Instance.Unregister(this);
+                var ccm = CombatCharacterManager.Instance;
+                if (ccm != null)
+                {
+                    ccm.Unregister(this);
+                }
             }
         }
     }
