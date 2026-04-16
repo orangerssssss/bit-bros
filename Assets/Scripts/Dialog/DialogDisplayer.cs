@@ -33,7 +33,7 @@ public class DialogDisplayer : MonoBehaviour
     [Range(0.5f, 1.24f)]
     public float speed = 0.9f;// 文本逐字显示速度
 
-    [HideInInspector]
+
     public PlayerMoveController controller;// 玩家控制器
 
     private bool isDialog = false;// 是否正在对话
@@ -45,9 +45,12 @@ public class DialogDisplayer : MonoBehaviour
 
     private void Awake()
     {
-        controller = GameObject.FindGameObjectWithTag("Player").GetComponent<PlayerMoveController>();
+        controller = FindObjectOfType<PlayerMoveController>();
+        if (controller == null)
+        {
+            Debug.LogError("❌ 场景里没有找到玩家移动脚本！", this);
+        }
     }
-
     private void Start()
     {
         dialogUIObject = GameUIManager.Instance.dialog;
@@ -173,7 +176,7 @@ public class DialogDisplayer : MonoBehaviour
     {
         if (dialogConfig == null) ExitDialog();
 
-        continueTip.SetActive(false); 
+        continueTip.SetActive(false);
 
         if (isDialog)
         {

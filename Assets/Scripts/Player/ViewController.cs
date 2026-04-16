@@ -36,7 +36,7 @@ public class ViewController : MonoBehaviour
     private void Awake()
     {
         Init();
-        Debug.Log($"ViewController Awake: followingCameraParent={(followingCameraParent!=null?followingCameraParent.name:"null")}, playerVCamera={(playerVCamera!=null?playerVCamera.name:"null")}");
+        Debug.Log($"ViewController Awake: followingCameraParent={(followingCameraParent != null ? followingCameraParent.name : "null")}, playerVCamera={(playerVCamera != null ? playerVCamera.name : "null")}");
     }
 
     private void LateUpdate()
@@ -50,7 +50,7 @@ public class ViewController : MonoBehaviour
     {
         mainCamera = Camera.main;
         playerVCamera = followingCameraParent.GetChild(0);
-        
+
         // 初始化相机近面的点偏移, 用于射线检测
         float halfFOV = (mainCamera.fieldOfView * 0.5f) * Mathf.Deg2Rad;
         float halfHeight = mainCamera.nearClipPlane * Mathf.Tan(halfFOV);
@@ -61,7 +61,7 @@ public class ViewController : MonoBehaviour
         viewBlockPoint[2] = new Vector3(-halfWidth, halfHeight, 0);
         viewBlockPoint[3] = new Vector3(halfWidth, -halfHeight, 0);
         viewBlockPoint[4] = new Vector3(halfWidth, halfHeight, 0);
-        
+
         InitCamera();
     }
 
@@ -127,7 +127,7 @@ public class ViewController : MonoBehaviour
             // also log raw axis values when disabled to check if input is coming
             if (Input.GetAxisRaw("Mouse X") != 0 || Input.GetAxisRaw("Mouse Y") != 0)
             {
-                Debug.Log($"Mouse axes while view disabled: MouseX={Input.GetAxisRaw("Mouse X")}, MouseY={Input.GetAxisRaw("Mouse Y")}");
+                // Debug.Log($"Mouse axes while view disabled: MouseX={Input.GetAxisRaw("Mouse X")}, MouseY={Input.GetAxisRaw("Mouse Y")}");
             }
         }
         playerVCamera.position = Vector3.Lerp(playerVCamera.position, followingCameraParent.position - playerVCamera.forward * viewDistance, viewLerpSpeed);
@@ -138,7 +138,7 @@ public class ViewController : MonoBehaviour
         {
             // 射线检测到到目标, 且为环境
             if (Physics.Linecast(followingCameraParent.position + playerVCamera.TransformDirection(viewBlockPoint[i]), playerVCamera.position + playerVCamera.TransformDirection(viewBlockPoint[i]),
-                    out RaycastHit hit, ~(1 << 2 | 1 << 7))) 
+                    out RaycastHit hit, ~(1 << 2 | 1 << 7)))
             {
                 float dis = Vector3.Distance(followingCameraParent.position, hit.point);
                 if (dis < minDis) minDis = dis;

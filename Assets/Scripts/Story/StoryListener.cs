@@ -61,106 +61,18 @@ public class StoryListener
     }
 
     /// <summary>
-    /// 拾取武器完毕，自动与铁匠对话
+    /// 与 Merlin 对话完毕，推进到下一任务
     /// </summary>
-    public void StoryProcess2_0(int itemID)
-    {
-        if (itemID == 4001)
-        {
-            GameEventManager.Instance.pickUpItemEvent.RemoveListener(StoryProcess2_0);
-
-            MainSceneStory.Instance.tradeNPC.AddSpecialDialog(MainSceneStory.Instance.dialog_2_0);
-            MainSceneStory.Instance.tradeNPC.Interact();
-
-            GameEventManager.Instance.dialogConfigEndEvent.AddListener(StoryProcess2_1);
-        }
-    }
-
-    /// <summary>
-    /// 与铁匠对话完毕，去与猎人对话
-    /// </summary>
-    public void StoryProcess2_1(DialogConfig dialog)
+    public void StoryProcess2_0(DialogConfig dialog)
     {
         if (dialog == MainSceneStory.Instance.dialog_2_0)
         {
-            GameEventManager.Instance.dialogConfigEndEvent.RemoveListener(StoryProcess2_1);
-
-            GameUIManager.Instance.controlTip.ShowTip("‘B’ 打开角色及背包界面\n‘拖动物品’ 装备武器\n‘鼠标左键’ 攻击");
-            GameUIManager.Instance.mainTaskTip.AddSideTask("探索山洞获取武器");
-            GameUIManager.Instance.sideDestinationMark0.SetTarget(MainSceneStory.Instance.mark_side0);
-            GameUIManager.Instance.mainTaskTip.UpdateTask("在背包内装备获得的武器，在山林中杀死野猪，取得3块兽肉后交给艾克特。");
-            MainSceneStory.Instance.hunterNPC.AddSpecialDialog(MainSceneStory.Instance.dialog_2_1);
-            GameUIManager.Instance.destinationMark.SetTarget(MainSceneStory.Instance.mark_hunter);
-
-            GameEventManager.Instance.dialogConfigEndEvent.AddListener(StoryProcess2_2);
-        }
-
-    }
-
-    /// <summary>
-    /// 与猎人对话完毕，去提交兽肉
-    /// </summary>
-    public void StoryProcess2_2(DialogConfig dialog)
-    {
-        if (dialog == MainSceneStory.Instance.dialog_2_1)
-        {
-            GameEventManager.Instance.dialogConfigEndEvent.RemoveListener(StoryProcess2_2);
-
-            GameUIManager.Instance.mainTaskTip.AddSideTask("调查猎人营地", true);
-            GameUIManager.Instance.sideDestinationMark1.SetTarget(MainSceneStory.Instance.mark_side1);
-            GameUIManager.Instance.destinationMark.SetTarget(MainSceneStory.Instance.mark_hunt, 36.0f);
-
-            GameEventManager.Instance.beforeDialogEvent.AddListener(StoryProcess2_3);
-            GameEventManager.Instance.pickUpItemEvent.AddListener(StoryProcess2_2Tip);
-        }
-    }
-
-    public void StoryProcess2_2Tip(int itemID)
-    {
-        if (itemID == 1001)
-        {
-            MainSceneStory.Instance.pickMealCount--;
-            if (MainSceneStory.Instance.pickMealCount == 2)
-            {
-                GameUIManager.Instance.controlTip.ShowTip("‘B’ 打开角色及背包界面\n‘背包->材料’ 检查物品");
-            }
-
-            if (MainSceneStory.Instance.pickMealCount <= 0)
-            {
-                GameUIManager.Instance.destinationMark.SetTarget(MainSceneStory.Instance.mark_ector);
-            }
-        }
-    }
-
-    /// <summary>
-    /// 检查兽肉完毕，自动与艾克特对话
-    /// </summary>
-    public void StoryProcess2_3(DialogObject dialogNPC)
-    {
-        if (dialogNPC == MainSceneStory.Instance.ectorNPC && InventoryManager.Instance.HasItems(DataManager.Instance.itemConfig.FindItemByID(1001), 3))
-        {
-            GameEventManager.Instance.beforeDialogEvent.RemoveListener(StoryProcess2_3);
-
-            MainSceneStory.Instance.ectorNPC.AddSpecialDialog(MainSceneStory.Instance.dialog_2_2);
-
-            GameEventManager.Instance.dialogConfigEndEvent.AddListener(StoryProcess2_4);
-        }
-    }
-
-    /// <summary>
-    /// 提交兽肉完毕，去查看告示
-    /// </summary>
-    public void StoryProcess2_4(DialogConfig dialog)
-    {
-        if (dialog == MainSceneStory.Instance.dialog_2_2)
-        {
-            GameEventManager.Instance.dialogConfigEndEvent.RemoveListener(StoryProcess2_4);
-
-            InventoryManager.Instance.ReduceItems(DataManager.Instance.itemConfig.FindItemByID(1001), 3);
+            GameEventManager.Instance.dialogConfigEndEvent.RemoveListener(StoryProcess2_0);
 
             MainSceneStory.Instance.DriveProcess();
         }
     }
+
 
     /// <summary>
     /// 查看告示完毕，去与梅林对话

@@ -49,6 +49,7 @@ public class MainSceneStory : MonoBehaviour
     public DialogConfig dialogTrade;
 
     [Header("对话物")]
+    public DialogObject merlinNPC;
     public DialogObject startVillagerNPC;
     public DialogObject ectorNPC;
     public DialogObject tradeNPC;
@@ -70,6 +71,7 @@ public class MainSceneStory : MonoBehaviour
     public Transform caveExit;
 
     [Header("物体")]
+    public GameObject npc_Merlin;
     public GameObject firstWeapon;
     public GameObject merlinHunt;
     public GameObject noticeNPCs;
@@ -107,6 +109,9 @@ public class MainSceneStory : MonoBehaviour
     public PlayableDirector timeline_9_invasionEnd;
 
     [Header("标识")]
+    public Transform mark_caveExit;
+    public Transform mark_caveEntry;
+    public Transform mark_merilin;
     public Transform mark_ector;
     public Transform mark_firstWeapon;
     public Transform mark_hunter;
@@ -178,38 +183,26 @@ public class MainSceneStory : MonoBehaviour
             case 1://进入山洞
                 GameUIManager.Instance.mainTaskTip.UpdateTask("探索山洞", "进入山洞深处，找到可以探索的位置。");
                 if (caveTriggerPoint != null) caveTriggerPoint.SetActive(true);
-                if (caveEntry != null) GameUIManager.Instance.destinationMark.SetTarget(caveEntry);
-                // SimpleTrigger 脚本会在玩家进入时直接调用 CompleteCaveTask()
+                if (mark_caveEntry != null) GameUIManager.Instance.destinationMark.SetTarget(mark_caveEntry);
                 break;
 
-            case 2:// 和陌生人对话
+            case 2:// 和 Merlin 对话
                 GameUIManager.Instance.mainTaskTip.UpdateTask("和陌生人对话", "那里似乎站着一个神秘的陌生人，去问问他是谁");
 
-                firstWeapon.SetActive(true);
-                merlinHunt.SetActive(true);
-                //MainSceneStory.Instance.startNPC.SetActive(false);
-                GameUIManager.Instance.destinationMark.SetTarget(mark_firstWeapon, 1.0f);
+                if (npc_Merlin != null) npc_Merlin.SetActive(true);
+                merlinNPC.AddSpecialDialog(dialog_2_0);
+                GameUIManager.Instance.destinationMark.SetTarget(mark_merilin);
 
-                if (autoPickupStoryDialog) GameEventManager.Instance.pickUpItemEvent.AddListener(storyListener.StoryProcess2_0);
+                GameEventManager.Instance.dialogConfigEndEvent.AddListener(storyListener.StoryProcess2_0);
                 break;
-            case 3:// 告示
-                GameUIManager.Instance.mainTaskTip.UpdateTask("查看告示", "村口的告示牌似乎张贴了新的告示，前去查看张贴了什么吧。");
+            case 3:// 前进
+                GameUIManager.Instance.mainTaskTip.UpdateTask("继续前进", "拿起旁边的剑，到达山洞出口。");
 
-                noticeNPCs.SetActive(true);
-                if (merlinHunt.activeSelf) merlinHunt.SetActive(false);
-                DialogObjectManager.Instance.GetDialogObject("告示牌").AddSpecialDialog(dialog_3_0);
-                GameUIManager.Instance.destinationMark.SetTarget(mark_notice);
+                if (mark_caveExit != null) GameUIManager.Instance.destinationMark.SetTarget(mark_caveExit);
 
-                GameEventManager.Instance.dialogConfigEndEvent.AddListener(storyListener.StoryProcess3_0);
-                break;
-            case 4:// 魔法师
-                GameUIManager.Instance.mainTaskTip.UpdateTask("询问旁边的魔法师", "告示牌旁站着一位从来没见过的老人，从打扮来看应该是魔法师，问问他是不是知道些什么。");
 
-                noticeNPCs.SetActive(true);
-                noticeMerlinNPC.AddSpecialDialog(dialog_4_0);
-                GameUIManager.Instance.destinationMark.SetTarget(mark_noticeMerlin);
-                SetAndPlayVillageBGM(3);
 
+<<<<<<< Updated upstream
                 GameEventManager.Instance.dialogConfigEndEvent.AddListener(storyListener.StoryProcess4_0);
                 break;
             case 5:// 报告
@@ -260,8 +253,11 @@ public class MainSceneStory : MonoBehaviour
                 GameUIManager.Instance.destinationMark.SetTarget(mark_villagePath);
                 cemeteryNPCs.SetActive(true);
                 levelEnd.SetActive(true);
+=======
+>>>>>>> Stashed changes
 
                 break;
+
         }
     }
 

@@ -29,12 +29,12 @@ public class PlayerInputManager : MonoBehaviour
         viewController = GetComponent<ViewController>();
         interactDetect = GetComponent<InteractDetect>();
         combatController = GetComponent<PlayerCombatController>();
-        Debug.Log($"PlayerInputManager Awake: moveController={(moveController!=null)}, viewController={(viewController!=null)}, interactDetect={(interactDetect!=null)}, combatController={(combatController!=null)}");
+        // Debug.Log($"PlayerInputManager Awake: moveController={(moveController!=null)}, viewController={(viewController!=null)}, interactDetect={(interactDetect!=null)}, combatController={(combatController!=null)}");
     }
 
     private void Start()
     {
-        Debug.Log($"PlayerInputManager Start: viewControllable={(viewController!=null?viewController.viewControllable.ToString():"no viewController")}");
+        // Debug.Log($"PlayerInputManager Start: viewControllable={(viewController!=null?viewController.viewControllable.ToString():"no viewController")}");
         OpenAllInput();
     }
 
@@ -86,7 +86,7 @@ public class PlayerInputManager : MonoBehaviour
         viewController.viewControllable = false;
         interactDetect.SetInteractable(false);
         combatController.playerSkillControllable = false;
-        
+
         Cursor.visible = cursorVisible;
         if (!cursorVisible) Cursor.lockState = CursorLockMode.Locked;
         else Cursor.lockState = CursorLockMode.None;
