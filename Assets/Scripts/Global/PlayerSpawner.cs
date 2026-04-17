@@ -48,8 +48,44 @@ public class PlayerSpawner : MonoBehaviour
             }
             catch { }
             
+            // Ensure persistent player and its children are set to PlayerCamp layer at runtime
+            int playerCampLayer = LayerMask.NameToLayer("PlayerCamp");
+            if (playerCampLayer >= 0)
+            {
+                SetLayerRecursive(player, playerCampLayer);
+                SetLayerRecursive(playerControl, playerCampLayer);
+                Debug.Log($"PlayerSpawner: set Player and PlayerControl layers to PlayerCamp ({playerCampLayer}) at runtime");
+            }
+
+            // If persistent player's Animator lacks a controller, try to copy from the scene's PlayerControl dummy
+            try
+            {
+                var realAnimator = player.GetComponentInChildren<Animator>();
+                var dummyAnimator = playerControl.GetComponentInChildren<Animator>();
+                if (realAnimator != null && (realAnimator.runtimeAnimatorController == null) && dummyAnimator != null && dummyAnimator.runtimeAnimatorController != null)
+                {
+                    realAnimator.runtimeAnimatorController = dummyAnimator.runtimeAnimatorController;
+                    Debug.Log("PlayerSpawner: copied AnimatorController from PlayerControl dummy to persistent Player at runtime");
+                }
+            }
+            catch { }
+
             if (cc != null) cc.enabled = true;
         }
+    }
+
+    private void SetLayerRecursive(GameObject go, int layer)
+    {
+        if (go == null) return;
+        try
+        {
+            go.layer = layer;
+            foreach (Transform t in go.transform)
+            {
+                SetLayerRecursive(t.gameObject, layer);
+            }
+        }
+        catch { }
     }
     
     void SetCameraTarget()
@@ -163,7 +199,7 @@ public class PlayerSpawner : MonoBehaviour
                                 {
                                     view.SetSensitivity(0.9f, 0.55f);
                                     // Slightly increase camera distance for scene 2 (Imagination)
-                                    view.SetViewDistance(3.5f);
+                                    view.SetViewDistance(3.5f);                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
                                     Debug.Log($"Applied Imagination camera settings: sensitivity(0.9,0.55), viewDistance={2.2f}");
                                 }
                                 else

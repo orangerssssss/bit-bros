@@ -197,7 +197,7 @@ public class MainSceneStory : MonoBehaviour
                 break;
             case 3:// 前进
                 GameUIManager.Instance.mainTaskTip.UpdateTask("继续前进", "拿起旁边的剑，到达山洞出口。");
-
+                firstWeapon.SetActive(true);
                 if (mark_caveExit != null) GameUIManager.Instance.destinationMark.SetTarget(mark_caveExit);
 
 

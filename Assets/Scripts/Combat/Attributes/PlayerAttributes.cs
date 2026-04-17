@@ -8,6 +8,8 @@ using UnityEngine;
 public class PlayerAttributes : CharacterAttributes
 {
     private Animator animator;// 动画组件
+    private bool animatorLoggedMissing = false;
+    private bool animatorControllerLoggedMissing = false;
 
     public int pointsPerLevel = 2;
     public float moveSpeedMultiplier = 1.0f;// 移动速度
@@ -28,8 +30,30 @@ public class PlayerAttributes : CharacterAttributes
     private void Update()
     {
         // 同步速度到动画机, 保证动画播放速度一致
-        animator.SetFloat("MoveSpeedMultiplier", moveSpeedMultiplier);
-        animator.SetFloat("CommonAttackSpeed", commonAttackSpeed);
+        if (animator != null)
+        {
+            if (animator.runtimeAnimatorController != null)
+            {
+                animator.SetFloat("MoveSpeedMultiplier", moveSpeedMultiplier);
+                animator.SetFloat("CommonAttackSpeed", commonAttackSpeed);
+            }
+            else
+            {
+                if (!animatorControllerLoggedMissing)
+                {
+                    Debug.LogWarning($"{gameObject.name} PlayerAttributes: Animator has no controller assigned. Assign an AnimatorController to enable animation parameters.");
+                    animatorControllerLoggedMissing = true;
+                }
+            }
+        }
+        else
+        {
+            if (!animatorLoggedMissing)
+            {
+                Debug.LogWarning($"{gameObject.name} PlayerAttributes: Animator component missing. Add an Animator to enable player animations.");
+                animatorLoggedMissing = true;
+            }
+        }
 
         if (protectTimer > 0)
         {
@@ -92,14 +116,24 @@ public class PlayerAttributes : CharacterAttributes
     protected override void DeathReact()
     {
         // 关闭所有界面
-        GameUIManager.Instance.CloseAllWindow();
+        var gui = GameUIManager.Instance;
+        if (gui != null) gui.CloseAllWindow();
 
         // 触发死亡角色动画
-        animator.SetTrigger("Died");
+        if (animator != null && animator.runtimeAnimatorController != null)
+        {
+            animator.SetTrigger("Died");
+        }
+
         // 关闭输入
-        PlayerInputManager.Instance.CloseAllInput(true);
+        var pim = PlayerInputManager.Instance;
+        if (pim != null) pim.CloseAllInput(true);
+
         // 显示死亡UI
-        GameUIManager.Instance.diedUI.Died();
+        if (gui != null && gui.diedUI != null)
+        {
+            gui.diedUI.Died();
+        }
 
         //if (diedEvent == "")
         //{
@@ -127,13 +161,21 @@ public class PlayerAttributes : CharacterAttributes
     /// </summary>
     protected override void DamageReact()
     {
-        if ((float)health / MaxHealth > 0.35f)
+        var gui = GameUIManager.Instance;
+        if (gui != null && gui.damagedUI != null)
         {
-            GameUIManager.Instance.damagedUI.Damaged(true);
+            if ((float)health / MaxHealth > 0.35f)
+            {
+                gui.damagedUI.Damaged(true);
+            }
+            else
+            {
+                gui.damagedUI.Damaged(false);
+            }
         }
         else
         {
-            GameUIManager.Instance.damagedUI.Damaged(false);
+            Debug.LogWarning($"{gameObject.name} PlayerAttributes: GameUIManager or damagedUI missing, skipping DamageReact UI update.");
         }
     }
 

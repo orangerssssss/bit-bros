@@ -134,6 +134,8 @@ public abstract class CharacterAttributes : MonoBehaviour
         int damage = ResistDamage(attack, isPhysical);
         health = Mathf.Clamp(health - damage, 0, MaxHealth);
 
+        Debug.Log($"{gameObject.name} CharacterAttributes: Received attack={attack}, damageApplied={damage}, newHealth={health}");
+
         DamageReact();
 
         if (health <= 0)

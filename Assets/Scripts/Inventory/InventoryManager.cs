@@ -181,6 +181,52 @@ public class InventoryManager : MonoBehaviour
         if(GameUIManager.Instance.package.activeSelf)
         {
             PlayerInputManager.Instance.CloseControllInput(true);
+            // Ensure inventory player preview exists and is refreshed when package UI opened
+            try
+            {
+                var preview = GameUIManager.Instance.package.GetComponentInChildren<InventoryPlayerPreview>(true);
+                if (preview == null)
+                {
+                    GameObject previewGO = new GameObject("InventoryPlayerPreview");
+
+                    // Prefer to parent the preview under the PackageUI inside PlayerC&P if present.
+                    Transform previewParentTransform = GameUIManager.Instance.package.transform;
+                    Transform candidate = GameUIManager.Instance.package.transform.Find("PlayerC&P/PackageUI");
+                    if (candidate == null)
+                    {
+                        // search for a reasonable 'package' container among descendants (include inactive)
+                        var all = GameUIManager.Instance.package.GetComponentsInChildren<Transform>(true);
+                        foreach (var t in all)
+                        {
+                            if (t == GameUIManager.Instance.package.transform) continue;
+                            var n = t.name ?? string.Empty;
+                            if (n.Equals("PackageUI") || n.Contains("PackageUI") || n.Equals("Package") || n.ToLower().Contains("package"))
+                            {
+                                candidate = t;
+                                break;
+                            }
+                        }
+                    }
+                    if (candidate != null) previewParentTransform = candidate;
+
+                    previewGO.transform.SetParent(previewParentTransform, false);
+                    var ip = previewGO.AddComponent<InventoryPlayerPreview>();
+                    ip.previewParent = previewGO.transform;
+                    // sensible defaults for UI preview
+                    ip.previewLocalScale = Vector3.one * 0.6f;
+                    ip.previewRenderLayer = 5;
+                    ip.clonePlayerIfNoPrefab = true;
+                    ip.CreateOrRefreshPreview();
+                }
+                else
+                {
+                    preview.CreateOrRefreshPreview();
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("InventoryManager: failed to create/refresh InventoryPlayerPreview: " + e.Message);
+            }
         }
         else
         {

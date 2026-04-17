@@ -50,7 +50,13 @@ public class PackageAttributesDisplayer : MonoBehaviour
 
     private void Awake()
     {
-        playerAttributes = GameObject.FindGameObjectWithTag("Player").GetComponent<PlayerAttributes>();
+        try
+        {
+            var pgo = GameObject.FindGameObjectWithTag("Player");
+            if (pgo != null) playerAttributes = pgo.GetComponent<PlayerAttributes>();
+            else playerAttributes = null;
+        }
+        catch { playerAttributes = null; }
         // 添加UI面板交互按钮执行事件
         constitutionAdd.onClick.AddListener(() => AllocatePointToConstitution(true));
         constitutionReduce.onClick.AddListener(() => AllocatePointToConstitution(false));
@@ -62,6 +68,13 @@ public class PackageAttributesDisplayer : MonoBehaviour
 
     private void Update()
     {
+        if (playerAttributes == null)
+        {
+            var pgo = GameObject.FindGameObjectWithTag("Player");
+            if (pgo != null) playerAttributes = pgo.GetComponent<PlayerAttributes>();
+            if (playerAttributes == null) return;
+        }
+
         if (constitution != playerAttributes.Constitution || strength != playerAttributes.Strength || intelligence != playerAttributes.Intelligence)
         {
             UpdateAttributesText();
@@ -70,8 +83,16 @@ public class PackageAttributesDisplayer : MonoBehaviour
 
     private void OnEnable()
     {
-        UpdateAttributesText();
-        UpdateAllocateButton();
+        if (playerAttributes == null)
+        {
+            var pgo = GameObject.FindGameObjectWithTag("Player");
+            if (pgo != null) playerAttributes = pgo.GetComponent<PlayerAttributes>();
+        }
+        if (playerAttributes != null)
+        {
+            UpdateAttributesText();
+            UpdateAllocateButton();
+        }
     }
 
     /// <summary>

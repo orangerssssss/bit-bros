@@ -16,8 +16,32 @@ public class CombatCharacterManager : MonoBehaviour
     {
         get
         {
-            if (instance == null) instance = GameObject.FindObjectOfType<CombatCharacterManager>();
+            if (instance == null)
+            {
+                instance = GameObject.FindObjectOfType<CombatCharacterManager>();
+                if (instance == null)
+                {
+                    GameObject go = new GameObject("CombatCharacterManager");
+                    instance = go.AddComponent<CombatCharacterManager>();
+                    Object.DontDestroyOnLoad(go);
+                    Debug.Log("CombatCharacterManager: created singleton at runtime");
+                }
+            }
             return instance;
+        }
+    }
+
+    private void Awake()
+    {
+        if (instance == null)
+        {
+            instance = this;
+            Object.DontDestroyOnLoad(gameObject);
+        }
+        else if (instance != this)
+        {
+            // If another instance exists, destroy this duplicate to avoid stale singletons when switching scenes
+            Destroy(gameObject);
         }
     }
 

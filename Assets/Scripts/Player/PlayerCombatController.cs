@@ -233,10 +233,9 @@ public class PlayerCombatController : MonoBehaviour
                     // Ensure the static model is parented under weaponParent so it follows player across scenes
                     if (weaponParent != null && model.equipmentModel.transform.parent != weaponParent.transform)
                     {
-                        model.equipmentModel.transform.SetParent(weaponParent.transform, false);
-                        model.equipmentModel.transform.localPosition = Vector3.zero;
-                        model.equipmentModel.transform.localRotation = Quaternion.identity;
-                        Debug.Log($"SwitchWeapon: reparented static model '{model.equipmentModel.name}' to '{weaponParent.name}'");
+                        // Preserve world transform (position/rotation/scale) when reparenting to avoid scale changes
+                        model.equipmentModel.transform.SetParent(weaponParent.transform, true);
+                        Debug.Log($"SwitchWeapon: reparented static model '{model.equipmentModel.name}' to '{weaponParent.name}' (world transform preserved)");
                     }
                     Debug.Log($"SwitchWeapon: activated static model '{model.equipmentModel.name}'");
                     LogGameObjectInfo(model.equipmentModel);
@@ -262,10 +261,12 @@ public class PlayerCombatController : MonoBehaviour
                     Item it = DataManager.Instance.itemConfig.FindItemByID(id);
                     if (it != null && it.itemPrefab != null && weaponParent != null)
                     {
+                        // Instantiate under weaponParent and preserve the prefab's local transform
                         runtimeWeaponInstance = Instantiate(it.itemPrefab, weaponParent.transform);
-                        runtimeWeaponInstance.transform.localPosition = Vector3.zero;
-                        runtimeWeaponInstance.transform.localRotation = Quaternion.identity;
-                        runtimeWeaponInstance.transform.localScale = Vector3.one;
+                        // Apply prefab's local transform so scale/offset are correct when attached
+                        runtimeWeaponInstance.transform.localPosition = it.itemPrefab.transform.localPosition;
+                        runtimeWeaponInstance.transform.localRotation = it.itemPrefab.transform.localRotation;
+                        runtimeWeaponInstance.transform.localScale = it.itemPrefab.transform.localScale;
                         // Ensure runtime-instantiated prefab doesn't block camera raycasts
                         SetLayerRecursively(runtimeWeaponInstance, 2);
                         Debug.Log($"SwitchWeapon: instantiated runtime weapon '{runtimeWeaponInstance.name}' under '{weaponParent.name}'");

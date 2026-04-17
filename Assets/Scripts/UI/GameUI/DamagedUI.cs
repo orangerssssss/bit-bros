@@ -17,6 +17,11 @@ public class DamagedUI : MonoBehaviour
     /// <param name="small">显示强度是否为小</param>
     public void Damaged(bool small)
     {
+        if (damagedImage == null)
+        {
+            Debug.LogWarning($"{gameObject.name} DamagedUI: damagedImage not assigned. Skipping damaged UI.");
+            return;
+        }
         StopAllCoroutines();
         if (small) StartCoroutine("DamagedSmallAnim");
         else StartCoroutine("DamagedBigAnim");
@@ -27,6 +32,7 @@ public class DamagedUI : MonoBehaviour
     /// </summary>
     private IEnumerator DamagedSmallAnim()
     {
+        if (damagedImage == null) yield break;
         Color color = damagedImage.color;
         color.a = 0;
         damagedImage.color = color;
@@ -50,6 +56,7 @@ public class DamagedUI : MonoBehaviour
     /// </summary>
     private IEnumerator DamagedBigAnim()
     {
+        if (damagedImage == null) yield break;
         Color color = damagedImage.color;
         color.a = 0;
         damagedImage.color = color;

@@ -25,6 +25,12 @@ public class BoxAttackArea : AttackArea
 
         // Box检测
         RaycastHit[] objs = Physics.BoxCastAll(box.transform.TransformPoint(box.center), box.size / 2, box.transform.forward, box.transform.rotation, 0, OppositeLayerMask(combatCamp));
+        Debug.Log($"{name} BoxAttackArea: AreaDamage called, testHits={objs.Length}, mask={OppositeLayerMask(combatCamp)}");
+        for (int _i = 0; _i < objs.Length; _i++)
+        {
+            var h = objs[_i];
+            Debug.Log($"{name} BoxAttackArea: Hit[{_i}] -> {h.transform.name} (layer={LayerMask.LayerToName(h.transform.gameObject.layer)})");
+        }
         foreach (RaycastHit obj in objs)
         {
             // 如果有CharacterAttributes组件, 则造成伤害
@@ -33,6 +39,24 @@ public class BoxAttackArea : AttackArea
             {
                 character.GetAttack(attack, isPhysical);
                 hitTarget = true;
+            }
+        }
+
+        // Fallback: if no hits detected (often caused by layer mismatch), try an overlap check ignoring layer mask
+        if (!hitTarget && objs.Length == 0)
+        {
+            Debug.Log($"{name} BoxAttackArea: No hits with layer mask - performing fallback OverlapBox to detect potential targets.");
+            Collider[] cols = Physics.OverlapBox(box.transform.TransformPoint(box.center), box.size / 2, box.transform.rotation, ~0);
+            Debug.Log($"{name} BoxAttackArea: OverlapBox fallback hits={cols.Length}");
+            foreach (Collider col in cols)
+            {
+                CharacterAttributes ch = col.transform.GetComponent<CharacterAttributes>();
+                if (ch != null && ch.combatCamp != this.combatCamp)
+                {
+                    Debug.Log($"{name} BoxAttackArea: Fallback hit -> {col.transform.name} (camp={ch.combatCamp})");
+                    ch.GetAttack(attack, isPhysical);
+                    hitTarget = true;
+                }
             }
         }
 
