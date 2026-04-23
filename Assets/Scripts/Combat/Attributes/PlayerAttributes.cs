@@ -177,6 +177,29 @@ public class PlayerAttributes : CharacterAttributes
         {
             Debug.LogWarning($"{gameObject.name} PlayerAttributes: GameUIManager or damagedUI missing, skipping DamageReact UI update.");
         }
+        // Trigger player hit reaction animation if available and parameter exists
+        if (animator != null && animator.runtimeAnimatorController != null)
+        {
+            if (AnimatorHasParameter("Impact"))
+            {
+                animator.SetTrigger("Impact");
+            }
+            else
+            {
+                Debug.LogWarning($"{gameObject.name} PlayerAttributes: Animator missing 'Impact' parameter - skipping trigger.");
+            }
+        }
+    }
+
+    private bool AnimatorHasParameter(string paramName)
+    {
+        if (animator == null) return false;
+        var ps = animator.parameters;
+        for (int i = 0; i < ps.Length; i++)
+        {
+            if (ps[i].name == paramName) return true;
+        }
+        return false;
     }
 
     /// <summary>
@@ -221,6 +244,18 @@ public class PlayerAttributes : CharacterAttributes
         health = MaxHealth;
         mana = MaxMana;
         CombatCharacterManager.Instance.Register(this);
+    }
+
+    private void OnEnable()
+    {
+        // Ensure the player is registered with CombatCharacterManager when enabled (handles DontDestroyOnLoad scene switches)
+        CombatCharacterManager.Instance.Register(this);
+    }
+
+    private void OnDisable()
+    {
+        if (CombatCharacterManager.Instance != null)
+            CombatCharacterManager.Instance.Unregister(this);
     }
 
     /// <summary>

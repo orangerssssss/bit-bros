@@ -44,16 +44,16 @@ public class PlayerInputManager : MonoBehaviour
     public void OpenAllInput()
     {
         Debug.Log("PlayerInputManager.OpenAllInput called");
-        moveController.playerMoveControllable = true;
-        viewController.viewControllable = true;
-        interactDetect.SetInteractable(true);
-        combatController.playerSkillControllable = true;
-        InventoryManager.Instance.packageCanOpen = true;
+        if (moveController != null) moveController.playerMoveControllable = true;
+        if (viewController != null) viewController.viewControllable = true;
+        if (interactDetect != null) interactDetect.SetInteractable(true);
+        if (combatController != null) combatController.playerSkillControllable = true;
+        if (InventoryManager.Instance != null) InventoryManager.Instance.packageCanOpen = true;
 
-        GameMenu.Instance.menuCanOpen = true;
+        if (GameMenu.Instance != null) GameMenu.Instance.menuCanOpen = true;
         Cursor.visible = false;
         Cursor.lockState = CursorLockMode.Locked;
-        GameUIManager.Instance.destinationMark.markActive = true;
+        if (GameUIManager.Instance != null && GameUIManager.Instance.destinationMark != null) GameUIManager.Instance.destinationMark.markActive = true;
     }
 
     /// <summary>
@@ -63,17 +63,17 @@ public class PlayerInputManager : MonoBehaviour
     public void CloseAllInput(bool cursorVisible)
     {
         Debug.Log("PlayerInputManager.CloseAllInput called, cursorVisible=" + cursorVisible);
-        moveController.playerMoveControllable = false;
-        viewController.viewControllable = false;
-        interactDetect.SetInteractable(false);
-        combatController.playerSkillControllable = false;
-        InventoryManager.Instance.packageCanOpen = false;
+        if (moveController != null) moveController.playerMoveControllable = false;
+        if (viewController != null) viewController.viewControllable = false;
+        if (interactDetect != null) interactDetect.SetInteractable(false);
+        if (combatController != null) combatController.playerSkillControllable = false;
+        if (InventoryManager.Instance != null) InventoryManager.Instance.packageCanOpen = false;
 
-        GameMenu.Instance.menuCanOpen = false;
+        if (GameMenu.Instance != null) GameMenu.Instance.menuCanOpen = false;
         Cursor.visible = cursorVisible;
         if (!cursorVisible) Cursor.lockState = CursorLockMode.Locked;
         else Cursor.lockState = CursorLockMode.None;
-        GameUIManager.Instance.destinationMark.markActive = false;
+        if (GameUIManager.Instance != null && GameUIManager.Instance.destinationMark != null) GameUIManager.Instance.destinationMark.markActive = false;
     }
 
     /// <summary>

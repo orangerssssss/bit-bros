@@ -22,19 +22,24 @@ public class BoxAttackArea : AttackArea
     public override bool AreaDamage(int attack, bool isPhysical)
     {
         bool hitTarget = false;
-
-        // Box检测
-        RaycastHit[] objs = Physics.BoxCastAll(box.transform.TransformPoint(box.center), box.size / 2, box.transform.forward, box.transform.rotation, 0, OppositeLayerMask(combatCamp));
+        // Box检测 (包容 child/parent 的 CharacterAttributes)
+        Vector3 center = box.transform.TransformPoint(box.center);
+        Vector3 halfExtents = box.size / 2f;
+        RaycastHit[] objs = Physics.BoxCastAll(center, halfExtents, box.transform.forward, box.transform.rotation, 0f, OppositeLayerMask(combatCamp));
         Debug.Log($"{name} BoxAttackArea: AreaDamage called, testHits={objs.Length}, mask={OppositeLayerMask(combatCamp)}");
         for (int _i = 0; _i < objs.Length; _i++)
         {
             var h = objs[_i];
             Debug.Log($"{name} BoxAttackArea: Hit[{_i}] -> {h.transform.name} (layer={LayerMask.LayerToName(h.transform.gameObject.layer)})");
         }
+
+        // 首先尝试从命中点获取 CharacterAttributes，支持在 collider 的 parent/child 上寻找组件
         foreach (RaycastHit obj in objs)
         {
-            // 如果有CharacterAttributes组件, 则造成伤害
-            CharacterAttributes character = obj.transform.GetComponent<CharacterAttributes>();
+            Transform t = obj.transform;
+            CharacterAttributes character = t.GetComponent<CharacterAttributes>();
+            if (character == null) character = t.GetComponentInParent<CharacterAttributes>();
+            if (character == null) character = t.GetComponentInChildren<CharacterAttributes>();
             if (character != null)
             {
                 character.GetAttack(attack, isPhysical);
@@ -42,15 +47,18 @@ public class BoxAttackArea : AttackArea
             }
         }
 
-        // Fallback: if no hits detected (often caused by layer mismatch), try an overlap check ignoring layer mask
-        if (!hitTarget && objs.Length == 0)
+        // 如果没有命中目标（即使有命中 collider 但找不到 CharacterAttributes），进行覆盖检测作为回退
+        if (!hitTarget)
         {
-            Debug.Log($"{name} BoxAttackArea: No hits with layer mask - performing fallback OverlapBox to detect potential targets.");
-            Collider[] cols = Physics.OverlapBox(box.transform.TransformPoint(box.center), box.size / 2, box.transform.rotation, ~0);
+            Debug.Log($"{name} BoxAttackArea: No CharacterAttributes hit - performing fallback OverlapBox to detect potential targets.");
+            Collider[] cols = Physics.OverlapBox(center, halfExtents, box.transform.rotation, ~0);
             Debug.Log($"{name} BoxAttackArea: OverlapBox fallback hits={cols.Length}");
             foreach (Collider col in cols)
             {
-                CharacterAttributes ch = col.transform.GetComponent<CharacterAttributes>();
+                Transform t = col.transform;
+                CharacterAttributes ch = t.GetComponent<CharacterAttributes>();
+                if (ch == null) ch = t.GetComponentInParent<CharacterAttributes>();
+                if (ch == null) ch = t.GetComponentInChildren<CharacterAttributes>();
                 if (ch != null && ch.combatCamp != this.combatCamp)
                 {
                     Debug.Log($"{name} BoxAttackArea: Fallback hit -> {col.transform.name} (camp={ch.combatCamp})");

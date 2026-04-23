@@ -107,15 +107,15 @@ NavMeshSettings:
   m_BuildSettings:
     serializedVersion: 3
     agentTypeID: 0
-    agentRadius: 0.5
-    agentHeight: 2
+    agentRadius: 0.4
+    agentHeight: 1.7
     agentSlope: 45
     agentClimb: 0.4
     ledgeDropHeight: 0
     maxJumpAcrossDistance: 0
     minRegionArea: 2
     manualCellSize: 0
-    cellSize: 0.16666667
+    cellSize: 0.13333334
     manualTileSize: 0
     tileSize: 256
     buildHeightMesh: 0
@@ -123,7 +123,7 @@ NavMeshSettings:
     preserveTilesOutsideBounds: 0
     debug:
       m_Flags: 0
-  m_NavMeshData: {fileID: 0}
+  m_NavMeshData: {fileID: 23800000, guid: a0aa2617feb09dc4bbad73752f5914e6, type: 2}
 --- !u!1001 &5400021
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -298,7 +298,7 @@ GameObject:
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
+  m_StaticEditorFlags: 2147483647
   m_IsActive: 1
 --- !u!64 &27127709
 MeshCollider:
@@ -9335,7 +9335,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6607642661401604538, guid: 61674dee41097e24a8801d123f1fc318, type: 3}
       propertyPath: attackDesire
-      value: 0.747
+      value: 0.671
       objectReference: {fileID: 0}
     - target: {fileID: 6607642661401604538, guid: 61674dee41097e24a8801d123f1fc318, type: 3}
       propertyPath: patrolRadius
@@ -9343,7 +9343,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6607642661401604538, guid: 61674dee41097e24a8801d123f1fc318, type: 3}
       propertyPath: fightDistance
-      value: 7
+      value: 8
       objectReference: {fileID: 0}
     - target: {fileID: 6607642661401604538, guid: 61674dee41097e24a8801d123f1fc318, type: 3}
       propertyPath: attackDistance
@@ -9355,7 +9355,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6607642661401604538, guid: 61674dee41097e24a8801d123f1fc318, type: 3}
       propertyPath: patrolIdleTime
-      value: 3
+      value: 4.28
       objectReference: {fileID: 0}
     - target: {fileID: 6607642661401604541, guid: 61674dee41097e24a8801d123f1fc318, type: 3}
       propertyPath: m_Name
@@ -11596,7 +11596,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1376542090
 Transform:
   m_ObjectHideFlags: 0

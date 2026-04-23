@@ -9,6 +9,8 @@ using UnityEngine.AI;
 public class FightAISoldier : FightAI
 {
     private static Transform player;// 玩家
+    private Rigidbody rb;
+    private CharacterController charController;
     private float debugLogCooldown = 1.0f;
     private float lastDebugLogTime = -10.0f;
 
@@ -50,6 +52,7 @@ public class FightAISoldier : FightAI
     private bool hasFallbackPatrolDest = false;
 
     private CharacterAttributes target;
+    private string lastTargetName = null;
 
     protected override void InitFightAI()
     {
@@ -63,6 +66,19 @@ public class FightAISoldier : FightAI
             fightStateInterval += Random.Range(-fightStateInterval / 8, fightStateInterval / 8);
             attackInterval += Random.Range(-attackInterval / 8, attackInterval / 8);
         }
+
+        // Ensure animator does not apply root motion so script-controlled transform movement works
+        if (animator != null)
+        {
+            if (animator.applyRootMotion)
+            {
+                animator.applyRootMotion = false;
+                Debug.Log($"{name} FightAISoldier: Animator.applyRootMotion disabled to allow scripted movement fallback.");
+            }
+        }
+        // cache physics/movement components
+        rb = GetComponent<Rigidbody>();
+        charController = GetComponent<CharacterController>();
     }
 
     private void OnEnable()
@@ -92,6 +108,12 @@ public class FightAISoldier : FightAI
                 else
                 {
                     Debug.LogWarning($"{name} FightAISoldier: No NavMesh within {sampleDist}m of spawn position. Bake NavMesh or move spawn.");
+                    // Disable agent to ensure fallback transform-based movement is used
+                    if (agent.enabled)
+                    {
+                        agent.enabled = false;
+                        Debug.Log($"{name} FightAISoldier: NavMeshAgent disabled (no NavMesh) to use fallback movement.");
+                    }
                 }
             }
         }
@@ -128,6 +150,12 @@ public class FightAISoldier : FightAI
                 Debug.LogWarning($"{name} FightAISoldier: agent.isOnNavMesh == false (enemy not on NavMesh)");
                 lastDebugLogTime = Time.time;
             }
+            // If agent is enabled but not on NavMesh, disable it so fallback movement isn't interfered with
+            if (agent.enabled)
+            {
+                agent.enabled = false;
+                Debug.Log($"{name} FightAISoldier: NavMeshAgent disabled during Update (no NavMesh) to use fallback movement.");
+            }
             // DO NOT return; fallback movement handled below
         }
 
@@ -161,11 +189,13 @@ public class FightAISoldier : FightAI
             }
         }
 
-        if (Time.time - lastDebugLogTime > debugLogCooldown)
+        // Log target changes (less spam): when target name changes, print details
+        string currentTargetName = target != null ? target.gameObject.name : "null";
+        if (currentTargetName != lastTargetName)
         {
-            string tname = target != null ? target.gameObject.name : "null";
-            Debug.Log($"{name} FightAISoldier DEBUG: target={tname}, agent.enabled={agent.enabled}, isOnNavMesh={agent.isOnNavMesh}, health={fightAttributes.health}");
-            lastDebugLogTime = Time.time;
+            lastTargetName = currentTargetName;
+            string tpos = target != null ? target.transform.position.ToString("F2") : "-";
+            Debug.Log($"{name} FightAISoldier TARGET_CHANGED: target={currentTargetName}, targetPos={tpos}, agent.enabled={(agent!=null?agent.enabled:false)}, isOnNavMesh={(agent!=null?agent.isOnNavMesh:false)}, health={fightAttributes.health}");
         }
 
         // 行动 (gunakan fallback jika NavMesh tidak tersedia)
@@ -241,10 +271,27 @@ public class FightAISoldier : FightAI
             if (dir.magnitude > 0.2f)
             {
                 float speed = fallbackMoveSpeed;
-                transform.position += dir.normalized * speed * Time.deltaTime;
+                // Prefer CharacterController or Rigidbody movement if present
+                Vector3 before = transform.position;
+                if (charController != null)
+                {
+                    charController.Move(dir.normalized * speed * Time.deltaTime);
+                }
+                else if (rb != null && !rb.isKinematic)
+                {
+                    rb.MovePosition(transform.position + dir.normalized * speed * Time.deltaTime);
+                }
+                else
+                {
+                    transform.position += dir.normalized * speed * Time.deltaTime;
+                }
                 Quaternion targetRot = Quaternion.LookRotation(dir, Vector3.up);
                 transform.rotation = Quaternion.Lerp(transform.rotation, targetRot, Time.deltaTime * 4f);
                 targetMoveSpeed = speed;
+                if (before == transform.position)
+                {
+                    Debug.LogWarning($"{name} FightAISoldier: Patrol fallback movement did not change position (blocked?). rb={(rb!=null)}, charController={(charController!=null)}");
+                }
             }
             else
             {
@@ -259,6 +306,20 @@ public class FightAISoldier : FightAI
     private void FallbackAction(Vector3 targetPos)
     {
         float dis = Vector3.Distance(targetPos, transform.position);
+
+        // Debug fallback movement decisions
+        if (Time.time - lastDebugLogTime > debugLogCooldown)
+        {
+            Debug.Log($"{name} FightAISoldier: FallbackAction targetPos={targetPos}, selfPos={transform.position}, dis={dis:F2}, attackDistance={attackDistance}, alarmDistance={alarmDistance}");
+            lastDebugLogTime = Time.time;
+        }
+
+        // Make sure animator is not applying root motion during scripted fallback movement
+        if (animator != null && animator.applyRootMotion)
+        {
+            animator.applyRootMotion = false;
+            Debug.Log($"{name} FightAISoldier: Disabled Animator.applyRootMotion in FallbackAction to allow transform movement.");
+        }
 
         if (dis > alarmDistance) // idle/patrol
         {
@@ -277,10 +338,28 @@ public class FightAISoldier : FightAI
                 Vector3 dir = targetPos - transform.position;
                 dir.y = 0;
                 float speed = fallbackMoveSpeed;
-                transform.position += dir.normalized * speed * Time.deltaTime;
+                // Log movement intent
+                Debug.Log($"{name} FightAISoldier: Fallback moving toward target (dir={dir.normalized}, speed={speed}, delta={Time.deltaTime:F3})");
+                Vector3 before = transform.position;
+                if (charController != null)
+                {
+                    charController.Move(dir.normalized * speed * Time.deltaTime);
+                }
+                else if (rb != null && !rb.isKinematic)
+                {
+                    rb.MovePosition(transform.position + dir.normalized * speed * Time.deltaTime);
+                }
+                else
+                {
+                    transform.position += dir.normalized * speed * Time.deltaTime;
+                }
                 Quaternion targetRot = Quaternion.LookRotation(dir, Vector3.up);
                 transform.rotation = Quaternion.Lerp(transform.rotation, targetRot, Time.deltaTime * 12.0f);
                 targetMoveSpeed = speed;
+                if (before == transform.position)
+                {
+                    Debug.LogWarning($"{name} FightAISoldier: Fallback movement attempt did not change position (blocked). rb={(rb!=null)}, charController={(charController!=null)}, animator.applyRootMotion={(animator!=null?animator.applyRootMotion:false)}");
+                }
             }
             else
             {
