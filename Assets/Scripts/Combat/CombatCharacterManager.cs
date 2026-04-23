@@ -57,6 +57,16 @@ public class CombatCharacterManager : MonoBehaviour
     private void OnDestroy()
     {
         SceneManager.sceneLoaded -= OnSceneLoaded;
+
+        // 如果这是主实例，在销毁时清空所有注册表
+        if (instance == this)
+        {
+            Debug.Log("CombatCharacterManager: Main instance destroyed, clearing registry.");
+            noneCampCharacters.Clear();
+            playerCampCharacters.Clear();
+            enemyCampCharacters.Clear();
+            instance = null;
+        }
     }
 
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
@@ -177,7 +187,7 @@ public class CombatCharacterManager : MonoBehaviour
                 nearestCharacter = character;
             }
         }
-        Debug.Log($"CombatCharacterManager: FindNearestCharacter candidates={characters.Count}, selfPos={selfPosition}, list={listSummary}, nearest={(nearestCharacter!=null?nearestCharacter.gameObject.name:"null")} dist={minDistance:F2}");
+        Debug.Log($"CombatCharacterManager: FindNearestCharacter candidates={characters.Count}, selfPos={selfPosition}, list={listSummary}, nearest={(nearestCharacter != null ? nearestCharacter.gameObject.name : "null")} dist={minDistance:F2}");
 
         return nearestCharacter;
     }
@@ -188,15 +198,18 @@ public class CombatCharacterManager : MonoBehaviour
     /// </summary>
     private void RebuildRegistry()
     {
+        // 清空所有列表，避免遗留的死对象
         noneCampCharacters.Clear();
         playerCampCharacters.Clear();
         enemyCampCharacters.Clear();
 
         CharacterAttributes[] all = GameObject.FindObjectsOfType<CharacterAttributes>();
         Debug.Log($"CombatCharacterManager: Rebuilding registry, found {all.Length} CharacterAttributes.");
+
         foreach (var c in all)
         {
-            if (c != null)
+            // 只注册有效活跃的对象
+            if (c != null && c.gameObject.activeInHierarchy)
             {
                 Register(c);
             }
