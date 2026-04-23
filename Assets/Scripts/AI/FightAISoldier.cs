@@ -48,6 +48,8 @@ public class FightAISoldier : FightAI
     private float fallbackMoveSpeed = 1.0f; // speed when NavMesh not available
     [SerializeField]
     private float fallbackRunSpeed = 3.5f;
+    [SerializeField]
+    private float chaseSpeed = 3.5f; // 追击时的移动速度(m/s)
     private Vector3 fallbackPatrolDest;
     private bool hasFallbackPatrolDest = false;
 
@@ -59,6 +61,12 @@ public class FightAISoldier : FightAI
         base.InitFightAI();
 
         if (player == null) player = GameObject.FindGameObjectWithTag("Player").transform;
+
+        // 设置 NavMeshAgent 的速度（如果 agent 可用）
+        if (agent != null && agent.enabled)
+        {
+            agent.speed = chaseSpeed;
+        }
 
         // 间隔产生小范围随机变化
         if (uncertainInterval)
@@ -195,7 +203,7 @@ public class FightAISoldier : FightAI
         {
             lastTargetName = currentTargetName;
             string tpos = target != null ? target.transform.position.ToString("F2") : "-";
-            Debug.Log($"{name} FightAISoldier TARGET_CHANGED: target={currentTargetName}, targetPos={tpos}, agent.enabled={(agent!=null?agent.enabled:false)}, isOnNavMesh={(agent!=null?agent.isOnNavMesh:false)}, health={fightAttributes.health}");
+            Debug.Log($"{name} FightAISoldier TARGET_CHANGED: target={currentTargetName}, targetPos={tpos}, agent.enabled={(agent != null ? agent.enabled : false)}, isOnNavMesh={(agent != null ? agent.isOnNavMesh : false)}, health={fightAttributes.health}");
         }
 
         // 行动 (gunakan fallback jika NavMesh tidak tersedia)
@@ -290,7 +298,7 @@ public class FightAISoldier : FightAI
                 targetMoveSpeed = speed;
                 if (before == transform.position)
                 {
-                    Debug.LogWarning($"{name} FightAISoldier: Patrol fallback movement did not change position (blocked?). rb={(rb!=null)}, charController={(charController!=null)}");
+                    Debug.LogWarning($"{name} FightAISoldier: Patrol fallback movement did not change position (blocked?). rb={(rb != null)}, charController={(charController != null)}");
                 }
             }
             else
@@ -358,7 +366,7 @@ public class FightAISoldier : FightAI
                 targetMoveSpeed = speed;
                 if (before == transform.position)
                 {
-                    Debug.LogWarning($"{name} FightAISoldier: Fallback movement attempt did not change position (blocked). rb={(rb!=null)}, charController={(charController!=null)}, animator.applyRootMotion={(animator!=null?animator.applyRootMotion:false)}");
+                    Debug.LogWarning($"{name} FightAISoldier: Fallback movement attempt did not change position (blocked). rb={(rb != null)}, charController={(charController != null)}, animator.applyRootMotion={(animator != null ? animator.applyRootMotion : false)}");
                 }
             }
             else
@@ -414,7 +422,11 @@ public class FightAISoldier : FightAI
         targetMoveSpeed = 0f;
         moveForward = true;
 
-        if (agent != null) agent.enabled = true;
+        if (agent != null && agent.enabled)
+        {
+            agent.enabled = true;
+            agent.speed = chaseSpeed;
+        }
 
         if (animator != null)
         {
@@ -457,7 +469,11 @@ public class FightAISoldier : FightAI
         {
             if (!animator.GetBool("Alarm")) animator.SetBool("Alarm", true);
 
-            if (agent != null && agent.enabled) agent.destination = targetPos;
+            if (agent != null && agent.enabled)
+            {
+                agent.destination = targetPos;
+                agent.speed = chaseSpeed;  // 设置追击速度
+            }
             targetMoveSpeed = 1.0f;
 
             // 更新战斗状态的行为
@@ -503,6 +519,17 @@ public class FightAISoldier : FightAI
                             Quaternion targetRot = Quaternion.LookRotation(dirToTarget, Vector3.up);
                             transform.rotation = Quaternion.Lerp(transform.rotation, targetRot, Time.deltaTime * 24.0f);
                         }
+                    }
+                }
+                else
+                {
+                    // 追击过程中也朝向目标
+                    Vector3 dirToTarget = targetPos - transform.position;
+                    dirToTarget.y = 0;
+                    if (dirToTarget.sqrMagnitude > 0.0001f)
+                    {
+                        Quaternion targetRot = Quaternion.LookRotation(dirToTarget, Vector3.up);
+                        transform.rotation = Quaternion.Lerp(transform.rotation, targetRot, Time.deltaTime * 8.0f);
                     }
                 }
             }

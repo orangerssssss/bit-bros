@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ae80d34c3c968a646a29d7877872a6eb, type: 3}
+  m_Name: Imagination_start
+  m_EditorClassIdentifier: 
+  contents:
+  - name: "\u4E9A\u745F"
+    content: ......
+  - name: "\u4E9A\u745F"
+    content: "\u2026\u2026\u8FD9\u91CC\u662F\u54EA\u91CC\uFF1F"
+  - name: "\u4E9A\u745F"
+    content: "\u6211\u521A\u521A\u4E0D\u662F\u8FD8\u5728\u5C71\u6D1E\u91CC\u9762\u5417\u2026\u2026"
+  - name: "\u4E9A\u745F"
+    content: "\u96BE\u9053\u2026\u2026\u662F\u90A3\u4E2A\u4F20\u9001\u95E8\uFF1F"
+  - name: "\u4E9A\u745F"
+    content: "\u6211\u5230\u5E95\u600E\u4E48\u4E86......"
+  - name: "\u6885\u6797"
+    content: "\u51A5\u51A5\u4E4B\u4E2D\uFF0C\u4F60\u65E9\u5DF2\u88AB\u547D\u8FD0\u7275\u5F15\u81F3\u6B64\u2026\u2026"
+  - name: "\u6885\u6797"
+    content: "\u6211\u7684\u5B69\u5B50\uFF0C\u4E0D\u8981\u72B9\u8C6B\uFF0C\u62FF\u8D77\u4F60\u7684\u6B66\u5668"
+  - name: "\u6885\u6797"
+    content: "\u76F4\u9762\u8FD9\u573A\u8BD5\u70BC\u5427\uFF0C\u65A9\u6740\u773C\u524D\u7684\u4E00\u5207\u963B\u788D"
+  - name: "\u6885\u6797"
+    content: "\u5018\u82E5\u4F60\u9000\u7F29\uFF0C\u4F60\u5C06\u4F1A\u5760\u5165\u65E0\u5C3D\u7684\u68A6\u9B47"
+  - name: "\u6885\u6797"
+    content: ......
+  nextDialog: []

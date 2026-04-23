@@ -32,6 +32,10 @@ public class GameEventManager : MonoBehaviour
     /// </summary>
     public UnityEvent<CharacterAttributes> characterBeforeDeathEvent = new UnityEvent<CharacterAttributes>();
     /// <summary>
+    /// 玩家死亡前执行的Event
+    /// </summary>
+    public UnityEvent<FightAttributes> fightBeforeDeathEvent = new UnityEvent<FightAttributes>();
+    /// <summary>
     /// 关闭背包时执行的Event
     /// </summary>
     public UnityEvent closePackageEvent = new UnityEvent();
