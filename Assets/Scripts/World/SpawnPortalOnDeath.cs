@@ -14,6 +14,12 @@ public class SpawnPortalOnDeath : MonoBehaviour
     [Tooltip("Posisi relatif terhadap posisi musuh tempat portal muncul")]
     public Vector3 spawnOffset = Vector3.zero;
 
+    [Tooltip("Jika dicentang, gunakan 'absolutePosition' sebagai posisi spawn di world (bukan relatif terhadap musuh)")]
+    public bool useAbsolutePosition = false;
+
+    [Tooltip("Posisi absolut (world) untuk spawn portal bila 'useAbsolutePosition' dicentang")]
+    public Vector3 absolutePosition = Vector3.zero;
+
     [Tooltip("Delay sebelum spawn portal (detik)")]
     public float spawnDelay = 0f;
 
@@ -86,8 +92,14 @@ public class SpawnPortalOnDeath : MonoBehaviour
         if (characterAttributes == null) characterAttributes = GetComponent<CharacterAttributes>();
         if (attr != characterAttributes) return; // bukan kematian dari karakter ini
 
+        Debug.Log($"SpawnPortalOnDeath: OnCharacterBeforeDeath received for {attr.gameObject.name} at pos={attr.transform.position} (this={gameObject.name}). spawnDelay={spawnDelay}, useAbsolutePosition={useAbsolutePosition}");
+
         if (onlyOnce && hasSpawned) return;
-        if (portalPrefab == null) return;
+        if (portalPrefab == null)
+        {
+            Debug.LogWarning($"SpawnPortalOnDeath: portalPrefab is null on {gameObject.name}, skipping spawn.");
+            return;
+        }
 
         if (spawnDelay <= 0f)
         {
@@ -108,7 +120,8 @@ public class SpawnPortalOnDeath : MonoBehaviour
     void SpawnPortal()
     {
         if (portalPrefab == null) return;
-        Vector3 pos = transform.position + spawnOffset;
+        Vector3 pos = useAbsolutePosition ? absolutePosition : transform.position + spawnOffset;
+        Debug.Log($"SpawnPortalOnDeath: Spawning portalPrefab '{portalPrefab.name}' at {pos} (absolute={useAbsolutePosition}) from {gameObject.name}");
         Instantiate(portalPrefab, pos, Quaternion.identity);
         hasSpawned = true;
     }
@@ -121,7 +134,8 @@ public class SpawnPortalOnDeath : MonoBehaviour
     {
         if (onlyOnce && hasSpawned) return;
         if (portalPrefab == null) return;
-        Vector3 pos = transform.position + spawnOffset;
+        Vector3 pos = useAbsolutePosition ? absolutePosition : transform.position + spawnOffset;
+        Debug.Log($"SpawnPortalOnDeath: TriggerPortalSpawnImmediate called on {gameObject.name} -> spawning '{portalPrefab.name}' at {pos}");
         Instantiate(portalPrefab, pos, Quaternion.identity);
         hasSpawned = true;
     }
@@ -129,6 +143,7 @@ public class SpawnPortalOnDeath : MonoBehaviour
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.cyan;
-        Gizmos.DrawWireSphere(transform.position + spawnOffset, 0.5f);
+        Vector3 gizmoPos = useAbsolutePosition ? absolutePosition : transform.position + spawnOffset;
+        Gizmos.DrawWireSphere(gizmoPos, 0.5f);
     }
 }

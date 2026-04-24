@@ -8,6 +8,7 @@ using UnityEngine.UI;
 /// </summary>
 public class GameUIManager : MonoBehaviour
 {
+    public static event System.Action OnUIReady;
     private static GameUIManager instance;
 
     public static GameUIManager Instance
@@ -80,6 +81,16 @@ public class GameUIManager : MonoBehaviour
     private void Awake()
     {
         InitItemTips();
+        // Notify listeners that the UI manager has been initialized
+        try
+        {
+            OnUIReady?.Invoke();
+            Debug.Log("GameUIManager: Awake complete, OnUIReady invoked.");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("GameUIManager: exception invoking OnUIReady: " + e.Message);
+        }
     }
 
     /// <summary>

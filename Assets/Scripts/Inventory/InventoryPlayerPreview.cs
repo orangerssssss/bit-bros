@@ -28,6 +28,10 @@ public class InventoryPlayerPreview : MonoBehaviour
     [Tooltip("Layer yang digunakan agar UI Camera merender model preview (default: UI layer 5)")]
     public int previewRenderLayer = 5;
 
+    [Header("Fallback")]
+    [Tooltip("Optional: jika Preview Prefab tidak di-assign di inspector, coba load prefab dari Resources dengan nama/path ini (mis: 'arthurbland'). " )]
+    public string defaultPreviewResourcePath = "PreviewPrefabs/arthurbland";
+
     private GameObject previewInstance;
     private int lastWeaponID = -9999;
 
@@ -77,6 +81,60 @@ public class InventoryPlayerPreview : MonoBehaviour
             return;
         }
 
+        // Try load from Resources if configured; if not configured, try common names
+        GameObject res = null;
+        if (!string.IsNullOrEmpty(defaultPreviewResourcePath))
+        {
+            res = Resources.Load<GameObject>(defaultPreviewResourcePath);
+            if (res == null)
+                Debug.LogWarning($"InventoryPlayerPreview: Resources.Load('{defaultPreviewResourcePath}') returned null.");
+        }
+
+        if (res == null)
+        {
+            string[] tryNames = new[] { "arthurbland", "arthur", "Player", "player" };
+            foreach (var n in tryNames)
+            {
+                res = Resources.Load<GameObject>(n);
+                if (res != null) break;
+            }
+        }
+
+        // As a final runtime fallback, scan all GameObject assets under Resources to find something with 'arthur' in its name
+        if (res == null)
+        {
+            try
+            {
+                var all = Resources.LoadAll<GameObject>("");
+                foreach (var g in all)
+                {
+                    if (g != null && g.name.ToLower().Contains("arthur"))
+                    {
+                        res = g;
+                        Debug.Log($"InventoryPlayerPreview: found Resources asset '{g.name}' by scanning Resources.");
+                        break;
+                    }
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("InventoryPlayerPreview: Resources scan fallback failed: " + e.Message);
+            }
+        }
+
+        if (res != null)
+        {
+            previewPrefab = res;
+            previewInstance = Instantiate(previewPrefab, previewParent);
+            previewInstance.name = previewPrefab.name + "_Preview";
+            ApplyPreviewTransform(previewInstance);
+            SetLayerRecursively(previewInstance, previewRenderLayer);
+            EnsurePreviewActiveAndRenderers(previewInstance);
+            CheckPreviewCameraCulling();
+            DiagnosePreviewVisibility(previewInstance);
+            return;
+        }
+
         if (clonePlayerIfNoPrefab)
         {
             GameObject source = FindBestPlayerVisual();
@@ -92,11 +150,113 @@ public class InventoryPlayerPreview : MonoBehaviour
 
                 ApplyPreviewTransform(previewInstance);
                 SetLayerRecursively(previewInstance, previewRenderLayer);
+                EnsurePreviewActiveAndRenderers(previewInstance);
+                CheckPreviewCameraCulling();
+                DiagnosePreviewVisibility(previewInstance);
                 return;
             }
         }
 
         Debug.LogWarning("InventoryPlayerPreview: no previewPrefab set and Player not found to clone.");
+    }
+
+    private void EnsurePreviewActiveAndRenderers(GameObject instance)
+    {
+        if (instance == null) return;
+        instance.SetActive(true);
+
+        // If previewParent is under a Canvas, log a hint (preview usually needs a dedicated preview camera / RenderTexture)
+        if (previewParent != null && previewParent.GetComponentInParent<Canvas>() != null)
+        {
+            Debug.Log($"InventoryPlayerPreview: previewParent '{previewParent.name}' is under a Canvas. Ensure a preview Camera + RenderTexture renders layer {previewRenderLayer}.");
+        }
+
+        // Ensure renderers are enabled and skinned meshes update when offscreen
+        var renderers = instance.GetComponentsInChildren<Renderer>(true);
+        if (renderers == null || renderers.Length == 0)
+        {
+            Debug.LogWarning($"InventoryPlayerPreview: preview '{instance.name}' has no Renderer components; it may be invisible.");
+        }
+        else
+        {
+            foreach (var r in renderers)
+            {
+                try { r.enabled = true; } catch { }
+            }
+            var skinned = instance.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            foreach (var s in skinned)
+            {
+                try { s.updateWhenOffscreen = true; } catch { }
+            }
+        }
+    }
+
+    private void CheckPreviewCameraCulling()
+    {
+        int mask = 1 << previewRenderLayer;
+        var cams = GameObject.FindObjectsOfType<Camera>();
+        bool any = false;
+        foreach (var cam in cams)
+        {
+            if ((cam.cullingMask & mask) != 0)
+            {
+                Debug.Log($"InventoryPlayerPreview: Camera '{cam.name}' renders preview layer {previewRenderLayer} (cullingMask={cam.cullingMask}).");
+                any = true;
+            }
+            else
+            {
+                Debug.Log($"InventoryPlayerPreview: Camera '{cam.name}' does NOT render preview layer {previewRenderLayer} (cullingMask={cam.cullingMask}).");
+            }
+        }
+        if (!any)
+        {
+            Debug.LogWarning($"InventoryPlayerPreview: No Camera in the scene renders layer {previewRenderLayer}. The preview will be invisible until a Camera's cullingMask includes this layer.");
+        }
+    }
+
+    private void DiagnosePreviewVisibility(GameObject instance)
+    {
+        if (instance == null) return;
+        var renderers = instance.GetComponentsInChildren<Renderer>(true);
+        if (renderers == null || renderers.Length == 0)
+        {
+            Debug.LogWarning($"InventoryPlayerPreview: DiagnosePreviewVisibility - no renderers found on '{instance.name}'.");
+            return;
+        }
+
+        // Compute world-space bounds center of the preview model
+        Bounds b = renderers[0].bounds;
+        foreach (var r in renderers)
+        {
+            try { b.Encapsulate(r.bounds); } catch { }
+        }
+        Vector3 center = b.center;
+
+        int mask = 1 << previewRenderLayer;
+        var cams = GameObject.FindObjectsOfType<Camera>();
+        bool any = false;
+        foreach (var cam in cams)
+        {
+            if ((cam.cullingMask & mask) == 0) continue;
+            any = true;
+            Vector3 vp = cam.WorldToViewportPoint(center);
+            if (vp.z <= 0f)
+            {
+                Debug.LogWarning($"InventoryPlayerPreview: Preview center is behind camera '{cam.name}' (z={vp.z:F2}). Camera pos={cam.transform.position}, preview center={center}.");
+            }
+            else if (vp.x < 0f || vp.x > 1f || vp.y < 0f || vp.y > 1f)
+            {
+                Debug.LogWarning($"InventoryPlayerPreview: Preview center is outside viewport for camera '{cam.name}' (viewport={vp.x:F2},{vp.y:F2}). Adjust previewLocalPos or camera transform.");
+            }
+            else
+            {
+                Debug.Log($"InventoryPlayerPreview: Preview center visible in camera '{cam.name}' (viewport={vp.x:F2},{vp.y:F2}, z={vp.z:F2}).");
+            }
+        }
+        if (!any)
+        {
+            Debug.LogWarning($"InventoryPlayerPreview: DiagnosePreviewVisibility - no camera renders preview layer {previewRenderLayer}.");
+        }
     }
 
     private void ApplyPreviewTransform(GameObject go)

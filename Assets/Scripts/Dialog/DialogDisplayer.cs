@@ -10,6 +10,7 @@ using UnityEngine.UI;
 /// </summary>
 public class DialogDisplayer : MonoBehaviour
 {
+    public static event System.Action OnDialogDisplayerReady;
     private static DialogDisplayer instance;// 单例
 
     public static DialogDisplayer Instance
@@ -85,6 +86,16 @@ public class DialogDisplayer : MonoBehaviour
         else
         {
             Debug.LogWarning("DialogDisplayer.Start: optionLabel is null");
+        }
+        // notify that DialogDisplayer has completed Start initialization
+        try
+        {
+            OnDialogDisplayerReady?.Invoke();
+            Debug.Log("DialogDisplayer: Start complete, OnDialogDisplayerReady invoked.");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("DialogDisplayer: exception invoking OnDialogDisplayerReady: " + e.Message);
         }
     }
 

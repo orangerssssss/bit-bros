@@ -243,13 +243,21 @@ public class PlayerAttributes : CharacterAttributes
     {
         health = MaxHealth;
         mana = MaxMana;
-        CombatCharacterManager.Instance.Register(this);
+        var ccm = CombatCharacterManager.Instance;
+        if (ccm != null)
+            ccm.Register(this);
+        else
+            Debug.LogWarning($"{gameObject.name} PlayerAttributes: CombatCharacterManager not found during InitAttributes, registration skipped.");
     }
 
     private void OnEnable()
     {
         // Ensure the player is registered with CombatCharacterManager when enabled (handles DontDestroyOnLoad scene switches)
-        CombatCharacterManager.Instance.Register(this);
+        var ccm = CombatCharacterManager.Instance;
+        if (ccm != null)
+            ccm.Register(this);
+        else
+            Debug.LogWarning($"{gameObject.name} PlayerAttributes: CombatCharacterManager not found in OnEnable, registration skipped.");
     }
 
     private void OnDisable()

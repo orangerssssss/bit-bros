@@ -211,7 +211,17 @@ public class InventoryManager : MonoBehaviour
 
                     previewGO.transform.SetParent(previewParentTransform, false);
                     var ip = previewGO.AddComponent<InventoryPlayerPreview>();
-                    ip.previewParent = previewGO.transform;
+                    // If a scene-level model root exists (created by the Editor setup), use that as preview parent
+                    var modelRoot = GameObject.Find("InventoryPreviewModelRoot");
+                    if (modelRoot != null)
+                    {
+                        ip.previewParent = modelRoot.transform;
+                        Debug.Log("InventoryManager: using scene 'InventoryPreviewModelRoot' for preview models.");
+                    }
+                    else
+                    {
+                        ip.previewParent = previewGO.transform;
+                    }
                     // sensible defaults for UI preview
                     ip.previewLocalScale = Vector3.one * 0.6f;
                     ip.previewRenderLayer = 5;

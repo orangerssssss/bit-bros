@@ -19,14 +19,11 @@ public class CombatCharacterManager : MonoBehaviour
         {
             if (instance == null)
             {
+                // Avoid creating a new GameObject here. Creating objects from a getter
+                // can cause Unity to spawn objects during scene unload/OnDestroy,
+                // which triggers "not cleaned up" warnings. Callers should handle
+                // a null return and perform safe bootstrap creation where appropriate.
                 instance = GameObject.FindObjectOfType<CombatCharacterManager>();
-                if (instance == null)
-                {
-                    GameObject go = new GameObject("CombatCharacterManager");
-                    instance = go.AddComponent<CombatCharacterManager>();
-                    Object.DontDestroyOnLoad(go);
-                    Debug.Log("CombatCharacterManager: created singleton at runtime");
-                }
             }
             return instance;
         }

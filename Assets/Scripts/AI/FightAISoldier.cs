@@ -50,6 +50,18 @@ public class FightAISoldier : FightAI
     private float fallbackRunSpeed = 3.5f;
     [SerializeField]
     private float chaseSpeed = 3.5f; // 追击时的移动速度(m/s)
+    [SerializeField, Tooltip("Jarak (meter) untuk NavMesh.SamplePosition ketika mencoba warp ke NavMesh pada OnEnable")]
+    private float navMeshSampleDistance = 10.0f;
+    [SerializeField, Tooltip("Jika true, coba ulang (retry) mencari NavMesh dan warp agent secara berkala ketika agent dinonaktifkan karena tidak berada di NavMesh")]
+    private bool autoRetryNavMesh = true;
+    [SerializeField, Tooltip("Interval (detik) antara percobaan sample NavMesh saat retry")]
+    private float navRetryInterval = 0.5f;
+    [SerializeField, Tooltip("Timeout (detik) untuk mencoba retry; 0 atau negatif berarti tanpa batas")]
+    private float navRetryTimeout = 0.0f;
+
+    // runtime state for navmesh retry
+    private Coroutine navRetryCoroutine = null;
+    private bool waitingForNavMesh = false;
     private Vector3 fallbackPatrolDest;
     private bool hasFallbackPatrolDest = false;
 
@@ -102,12 +114,16 @@ public class FightAISoldier : FightAI
         // Ensure NavMeshAgent is enabled and on the NavMesh. If not on NavMesh, try to sample nearest NavMesh
         if (agent != null)
         {
-            if (!agent.enabled) agent.enabled = true;
+            if (!agent.enabled) {
+                agent.enabled = true;
+                // If we re-enabled the agent, stop any pending navmesh retry attempts
+                StopNavRetryCoroutine();
+            }
 
             if (!agent.isOnNavMesh)
             {
                 NavMeshHit hit;
-                float sampleDist = 10.0f;
+                float sampleDist = navMeshSampleDistance;
                 if (NavMesh.SamplePosition(transform.position, out hit, sampleDist, NavMesh.AllAreas))
                 {
                     agent.Warp(hit.position);
@@ -121,6 +137,16 @@ public class FightAISoldier : FightAI
                     {
                         agent.enabled = false;
                         Debug.Log($"{name} FightAISoldier: NavMeshAgent disabled (no NavMesh) to use fallback movement.");
+                    }
+                    // start retry coroutine to attempt to reattach to NavMesh later
+                    if (autoRetryNavMesh)
+                    {
+                        waitingForNavMesh = true;
+                        if (navRetryCoroutine == null)
+                        {
+                            navRetryCoroutine = StartCoroutine(NavMeshRetryCoroutine());
+                            Debug.Log($"{name} FightAISoldier: started NavMesh retry coroutine (interval={navRetryInterval}s, timeout={navRetryTimeout}s)");
+                        }
                     }
                 }
             }
@@ -163,6 +189,15 @@ public class FightAISoldier : FightAI
             {
                 agent.enabled = false;
                 Debug.Log($"{name} FightAISoldier: NavMeshAgent disabled during Update (no NavMesh) to use fallback movement.");
+                if (autoRetryNavMesh)
+                {
+                    waitingForNavMesh = true;
+                    if (navRetryCoroutine == null)
+                    {
+                        navRetryCoroutine = StartCoroutine(NavMeshRetryCoroutine());
+                        Debug.Log($"{name} FightAISoldier: started NavMesh retry coroutine (interval={navRetryInterval}s, timeout={navRetryTimeout}s) from Update().");
+                    }
+                }
             }
             // DO NOT return; fallback movement handled below
         }
@@ -349,17 +384,63 @@ public class FightAISoldier : FightAI
                 // Log movement intent
                 Debug.Log($"{name} FightAISoldier: Fallback moving toward target (dir={dir.normalized}, speed={speed}, delta={Time.deltaTime:F3})");
                 Vector3 before = transform.position;
+                // compute desired move delta for this frame
+                Vector3 moveDelta = dir.normalized * speed * Time.deltaTime;
+
                 if (charController != null)
                 {
-                    charController.Move(dir.normalized * speed * Time.deltaTime);
+                    // Use capsule cast to test collisions ahead of the CharacterController.
+                    float ccHeight = Mathf.Max(0.01f, charController.height);
+                    float ccRadius = Mathf.Max(0.01f, charController.radius);
+                    Vector3 ccCenter = charController.center;
+                    Vector3 worldCenter = transform.TransformPoint(ccCenter);
+                    float halfHeight = Mathf.Max(0f, (ccHeight * 0.5f) - ccRadius);
+                    Vector3 p0 = worldCenter + Vector3.up * halfHeight;
+                    Vector3 p1 = worldCenter - Vector3.up * halfHeight;
+
+                    RaycastHit hitInfo;
+                    float checkDist = moveDelta.magnitude + 0.01f;
+                    bool blocked = Physics.CapsuleCast(p0, p1, ccRadius, moveDelta.normalized, out hitInfo, checkDist, ~0, QueryTriggerInteraction.Ignore);
+
+                    if (!blocked)
+                    {
+                        charController.Move(moveDelta);
+                    }
+                    else
+                    {
+                        // try sliding along the hit plane
+                        Vector3 slide = Vector3.ProjectOnPlane(moveDelta, hitInfo.normal);
+                        if (slide.sqrMagnitude > 0.0001f)
+                        {
+                            // check slide path
+                            bool slideBlocked = Physics.CapsuleCast(p0, p1, ccRadius, slide.normalized, out hitInfo, slide.magnitude + 0.01f, ~0, QueryTriggerInteraction.Ignore);
+                            if (!slideBlocked)
+                                charController.Move(slide);
+                            // else remain blocked this frame
+                        }
+                    }
                 }
                 else if (rb != null && !rb.isKinematic)
                 {
-                    rb.MovePosition(transform.position + dir.normalized * speed * Time.deltaTime);
+                    // Use Rigidbody.SweepTest to detect collisions before moving
+                    RaycastHit hitInfo;
+                    if (!rb.SweepTest(moveDelta.normalized, out hitInfo, moveDelta.magnitude + 0.01f))
+                    {
+                        rb.MovePosition(transform.position + moveDelta);
+                    }
+                    else
+                    {
+                        // try slide
+                        Vector3 slide = Vector3.ProjectOnPlane(moveDelta, hitInfo.normal);
+                        if (slide.sqrMagnitude > 0.0001f && !rb.SweepTest(slide.normalized, out hitInfo, slide.magnitude + 0.01f))
+                        {
+                            rb.MovePosition(transform.position + slide);
+                        }
+                    }
                 }
                 else
                 {
-                    transform.position += dir.normalized * speed * Time.deltaTime;
+                    transform.position += moveDelta;
                 }
                 Quaternion targetRot = Quaternion.LookRotation(dir, Vector3.up);
                 transform.rotation = Quaternion.Lerp(transform.rotation, targetRot, Time.deltaTime * 12.0f);
@@ -426,6 +507,8 @@ public class FightAISoldier : FightAI
         {
             agent.enabled = true;
             agent.speed = chaseSpeed;
+            // If we reset AI and agent is enabled, cancel any navmesh retry attempts
+            StopNavRetryCoroutine();
         }
 
         if (animator != null)
@@ -599,5 +682,67 @@ public class FightAISoldier : FightAI
     {
         attackAudioSource.Stop();
         attackAudioSource.Play();
+    }
+
+    private void OnDisable()
+    {
+        StopNavRetryCoroutine();
+    }
+
+    private void StopNavRetryCoroutine()
+    {
+        waitingForNavMesh = false;
+        if (navRetryCoroutine != null)
+        {
+            try { StopCoroutine(navRetryCoroutine); } catch { }
+            navRetryCoroutine = null;
+        }
+    }
+
+    private IEnumerator NavMeshRetryCoroutine()
+    {
+        float startTime = Time.time;
+        while (true)
+        {
+            // stop if agent became null or was re-enabled
+            if (agent == null)
+            {
+                navRetryCoroutine = null;
+                waitingForNavMesh = false;
+                yield break;
+            }
+
+            if (!agent.enabled)
+            {
+                NavMeshHit hit;
+                if (NavMesh.SamplePosition(transform.position, out hit, navMeshSampleDistance, NavMesh.AllAreas))
+                {
+                    // found navmesh; enable agent and warp onto it
+                    agent.enabled = true;
+                    try { agent.Warp(hit.position); } catch { }
+                    Debug.Log($"{name} FightAISoldier: NavMesh found during retry at {hit.position} - agent re-enabled and warped.");
+                    waitingForNavMesh = false;
+                    navRetryCoroutine = null;
+                    yield break;
+                }
+            }
+            else
+            {
+                // agent was enabled externally; stop retry
+                waitingForNavMesh = false;
+                navRetryCoroutine = null;
+                yield break;
+            }
+
+            if (navRetryTimeout > 0f && Time.time - startTime >= navRetryTimeout)
+            {
+                Debug.LogWarning($"{name} FightAISoldier: NavMesh retry timed out after {navRetryTimeout} seconds.");
+                waitingForNavMesh = false;
+                navRetryCoroutine = null;
+                yield break;
+            }
+
+            yield return new WaitForSeconds(navRetryInterval);
+        }
     }
 }

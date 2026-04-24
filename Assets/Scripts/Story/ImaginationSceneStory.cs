@@ -57,6 +57,11 @@ public class ImaginationSceneStory : MonoBehaviour
 
     private float dialogDelayTimer = 0f;
     private bool dialogStarted = false;
+    [SerializeField, Tooltip("Timeout seconds to wait for dialog/UI initialization; 0 or negative = wait indefinitely")]
+    private float dialogSystemWaitTimeout = 0f;
+    [SerializeField, Tooltip("Poll interval seconds while waiting for dialog/UI initialization")]
+    private float dialogSystemPollInterval = 0.2f;
+    private Coroutine openDialogRetryCoroutine = null;
 
     private void Start()
     {
@@ -130,7 +135,12 @@ public class ImaginationSceneStory : MonoBehaviour
                 if (enemyObject != null)
                     enemyObject.SetActive(false);
                 // 播放开场对话
-                StartCoroutine(PlayOpeningDialogAfterDelay(0f));
+                // NOTE: avoid starting the opening dialog coroutine immediately at Start
+                // because UI/Dialog systems may not be initialized yet and a retry
+                // coroutine will be spawned repeatedly. The Update() loop will
+                // trigger PlayOpeningDialog once the UI and DialogDisplayer are ready
+                // after a short delay.
+                //StartCoroutine(PlayOpeningDialogAfterDelay(0f));
                 break;
 
             case 1:// 对话结束 - 显示主线任务"斩杀敌人"
@@ -194,15 +204,74 @@ public class ImaginationSceneStory : MonoBehaviour
     /// </summary>
     private void PlayOpeningDialog()
     {
-
         // 播放开场对话
-        if (dialog_0 != null && introDialogObject != null)
+        if (dialog_0 == null || introDialogObject == null)
         {
-            // 直接调用 DialogDisplayer，不通过 Interact() 以避免潜在的输入管理问题
-            DialogDisplayer.Instance.StartDialog(introDialogObject, dialog_0, introDialogObject.transform.position, null);
+            Debug.LogWarning($"{name} ImaginationSceneStory: dialog_0 or introDialogObject is missing; cannot play opening dialog.");
+            return;
         }
-        else
+
+        // If dialog systems are ready, start immediately
+        if (DialogDisplayer.Instance != null && GameUIManager.Instance != null)
         {
+            dialogStarted = true;
+            DialogDisplayer.Instance.StartDialog(introDialogObject, dialog_0, introDialogObject.transform.position, null);
+            return;
+        }
+
+        // Not ready yet: start a retry coroutine that will poll until systems are available
+        if (openDialogRetryCoroutine == null)
+        {
+            Debug.LogWarning($"{name} ImaginationSceneStory: Dialog system/UI not ready yet - starting retry coroutine.");
+            openDialogRetryCoroutine = StartCoroutine(WaitForDialogSystemsAndStart(dialogSystemWaitTimeout));
+        }
+    }
+
+    private IEnumerator WaitForDialogSystemsAndStart(float timeout)
+    {
+        // Prefer event-driven notification if available
+        bool started = false;
+
+        System.Action onReady = null;
+        onReady = () =>
+        {
+            if (DialogDisplayer.Instance != null && GameUIManager.Instance != null && dialog_0 != null && introDialogObject != null)
+            {
+                dialogStarted = true;
+                DialogDisplayer.Instance.StartDialog(introDialogObject, dialog_0, introDialogObject.transform.position, null);
+                Debug.Log($"{name} ImaginationSceneStory: Dialog system ready - started opening dialog via event.");
+                started = true;
+            }
+        };
+
+        // Subscribe to both UI and DialogDisplayer ready events if present
+        try { GameUIManager.OnUIReady += onReady; } catch { }
+        try { DialogDisplayer.OnDialogDisplayerReady += onReady; } catch { }
+
+        float start = Time.realtimeSinceStartup;
+        while (!started && (timeout <= 0f || Time.realtimeSinceStartup - start < timeout))
+        {
+            // also poll occasionally in case events were missed
+            if (DialogDisplayer.Instance != null && GameUIManager.Instance != null && dialog_0 != null && introDialogObject != null)
+            {
+                dialogStarted = true;
+                DialogDisplayer.Instance.StartDialog(introDialogObject, dialog_0, introDialogObject.transform.position, null);
+                Debug.Log($"{name} ImaginationSceneStory: Dialog system ready - started opening dialog via polling.");
+                started = true;
+                break;
+            }
+            yield return new WaitForSecondsRealtime(dialogSystemPollInterval);
+        }
+
+        // cleanup subscriptions
+        try { GameUIManager.OnUIReady -= onReady; } catch { }
+        try { DialogDisplayer.OnDialogDisplayerReady -= onReady; } catch { }
+
+        openDialogRetryCoroutine = null;
+
+        if (!started)
+        {
+            Debug.LogWarning($"{name} ImaginationSceneStory: WaitForDialogSystemsAndStart timed out after {timeout} seconds.");
         }
     }
 
