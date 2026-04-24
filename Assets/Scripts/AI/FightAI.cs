@@ -44,11 +44,71 @@ public abstract class FightAI : MonoBehaviour
     public virtual void DiedReact()
     {
         animator.SetTrigger("Died");
+        // Ensure animator doesn't move root (avoid animation pushing corpse into air)
+        if (animator != null && animator.applyRootMotion)
+        {
+            animator.applyRootMotion = false;
+            Debug.Log($"{name} FightAI: Disabled animator.applyRootMotion on death to avoid root motion lifting the corpse.");
+        }
+
+        // Try to snap visual root to ground to avoid hovering corpses
+        TrySnapToGround();
+
         enemyCollider.enabled = false;
         agent.enabled = false;
 
         // 开始销毁协程
         if (gameObject.activeInHierarchy) StartCoroutine(EnemyDestroy());
+    }
+
+    /// <summary>
+    /// Attempt to snap the corpse visually to the ground surface beneath it.
+    /// Uses renderer bounds to compute lowest point and raycasts down to find ground.
+    /// This helps avoid cases where death animation or disabled colliders leave the model floating.
+    /// </summary>
+    private void TrySnapToGround()
+    {
+        try
+        {
+            var rends = GetComponentsInChildren<Renderer>(true);
+            if (rends == null || rends.Length == 0) return;
+
+            Bounds b = rends[0].bounds;
+            for (int i = 1; i < rends.Length; i++)
+            {
+                if (rends[i] != null) b.Encapsulate(rends[i].bounds);
+            }
+
+            float lowest = b.min.y; // world y of lowest renderer vertex
+            float pivotY = transform.position.y;
+            float lowestDelta = lowest - pivotY; // how far below pivot the visual sits
+
+            // Raycast down a reasonable distance to find ground
+            RaycastHit hit;
+            Vector3 rayStart = transform.position + Vector3.up * 0.5f;
+            if (Physics.Raycast(rayStart, Vector3.down, out hit, 10f, ~0, QueryTriggerInteraction.Ignore))
+            {
+                float newY = hit.point.y - lowestDelta;
+                // Avoid snapping upwards unexpectedly; only move down or small adjustments
+                if (newY <= transform.position.y + 0.05f)
+                {
+                    transform.position = new Vector3(transform.position.x, newY, transform.position.z);
+                    Debug.Log($"{name} FightAI: Snapped corpse to ground at {hit.point.y:F2} (lowestDelta={lowestDelta:F2}).");
+                }
+                else
+                {
+                    Debug.Log($"{name} FightAI: Snap would move up (newY={newY:F2}), skipping.");
+                }
+            }
+            else
+            {
+                Debug.Log($"{name} FightAI: No ground detected below to snap to.");
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"FightAI: TrySnapToGround failed: {e.Message}");
+        }
     }
 
     /// <summary>
