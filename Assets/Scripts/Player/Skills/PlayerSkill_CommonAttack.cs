@@ -36,7 +36,8 @@ public class PlayerSkill_CommonAttack : MonoBehaviour
     private void Update()
     {
         // 在能够使用技能且装备有武器时才能进行普通攻击
-        if (combatController.playerSkillControllable && combatController.equipedWeaponID > 0 && combatController.WeaponVisible)
+        // Disable common attack while shielding (right mouse)
+        if (combatController.playerSkillControllable && combatController.equipedWeaponID > 0 && combatController.WeaponVisible && !combatController.isShielding)
         {
             CommonAttack();
         }
