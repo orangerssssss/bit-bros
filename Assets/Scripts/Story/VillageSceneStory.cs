@@ -81,11 +81,11 @@ public class VillageSceneStory : MonoBehaviour
             villageEnemyKilledCount = 0;
         }
 
-        
+
         UpdateStory();
     }
 
-    
+
 
     /// <summary>
     /// 更新故事进度
