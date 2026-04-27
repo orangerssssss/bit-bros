@@ -13,7 +13,7 @@ public class InteractDetect : MonoBehaviour
     private InteractiveObject interactiveObject = null;// 当前交互物体
 
     private bool interactable = true;// 是否可交互
-    
+
     private GameObject interactLabel;// 交互提示父物体
     private Text interactTextLabel;// 交互显示文本
 
@@ -72,7 +72,11 @@ public class InteractDetect : MonoBehaviour
         InteractiveObject obj = null;
         if (Physics.Raycast(viewController.playerViewPoint.position, viewController.playerVCamera.forward, out RaycastHit hitInfo, interactDistance))
         {
-            obj = hitInfo.transform.GetComponent<InteractiveObject>();
+            // 兼容：很多NPC的Collider在子物体上，而DialogObject在父物体上
+            Transform hitTrans = hitInfo.transform;
+            obj = hitTrans.GetComponent<InteractiveObject>();
+            if (obj == null) obj = hitTrans.GetComponentInParent<InteractiveObject>();
+            if (obj == null) obj = hitTrans.GetComponentInChildren<InteractiveObject>();
         }
 
         // 交互显示更新

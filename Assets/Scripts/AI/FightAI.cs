@@ -156,6 +156,13 @@ public abstract class FightAI : MonoBehaviour
     }
 
     /// <summary>
+    /// 当攻击被玩家盾挡/招架时，攻击者的反应（默认无动作，子类可实现僵直）
+    /// </summary>
+    public virtual void OnShieldBlocked(float staggerDuration)
+    {
+    }
+
+    /// <summary>
     /// 初始化
     /// </summary>
     public abstract void ResetFightAI();

@@ -53,33 +53,69 @@ public class DataManager : MonoBehaviour
 
     public void SaveGame()
     {
+        EnsureSaveDataInitialized();
+
         // Player
         PlayerAttributes player = FindObjectOfType<PlayerAttributes>();
+        if (player != null)
+        {
+            if (player.attributesAddedPoints != null && player.attributesAddedPoints.Length >= 3)
+            {
+                saveData.playerSaveData.addedConstitution = player.attributesAddedPoints[0];
+                saveData.playerSaveData.addedStrength = player.attributesAddedPoints[1];
+                saveData.playerSaveData.addedIntelligence = player.attributesAddedPoints[2];
+            }
 
-        saveData.playerSaveData.addedConstitution = player.attributesAddedPoints[0];
-        saveData.playerSaveData.addedStrength = player.attributesAddedPoints[1];
-        saveData.playerSaveData.addedIntelligence = player.attributesAddedPoints[2];
-        saveData.playerSaveData.attributePoints = player.AttributePoints;
-
-        saveData.playerSaveData.level = player.level;
-        saveData.playerSaveData.experience = player.experience;
+            saveData.playerSaveData.attributePoints = player.AttributePoints;
+            saveData.playerSaveData.level = player.level;
+            saveData.playerSaveData.experience = player.experience;
+        }
 
         // Inventory
-        saveData.inventorySaveData.coin = InventoryManager.Instance.Coin;
+        var inv = InventoryManager.Instance;
+        if (inv != null)
+        {
+            saveData.inventorySaveData.coin = inv.Coin;
+            saveData.inventorySaveData.weaponID = inv.WeaponID;
+            saveData.inventorySaveData.armorID = inv.ArmorID;
 
-        saveData.inventorySaveData.weaponID = InventoryManager.Instance.WeaponID;
-        saveData.inventorySaveData.armorID = InventoryManager.Instance.ArmorID;
+            saveData.inventorySaveData.materialItemDataList = inv.GetPackageItemDataList(ItemType.Material);
+            saveData.inventorySaveData.propItemDataList = inv.GetPackageItemDataList(ItemType.Usable);
+            saveData.inventorySaveData.equipmentItemDataList = inv.GetPackageItemDataList(ItemType.Weapon);
+        }
 
-        saveData.inventorySaveData.materialItemDataList = InventoryManager.Instance.GetPackageItemDataList(ItemType.Material);
-        saveData.inventorySaveData.propItemDataList = InventoryManager.Instance.GetPackageItemDataList(ItemType.Usable);
-        saveData.inventorySaveData.equipmentItemDataList = InventoryManager.Instance.GetPackageItemDataList(ItemType.Weapon);
-
-        // Process
-        saveData.gameProcessSaveData.storyProcess = MainSceneStory.Instance.storyProcess;
+        // Process（兼容不同场景故事控制器）
+        if (MainSceneStory.Instance != null)
+        {
+            saveData.gameProcessSaveData.storyProcess = MainSceneStory.Instance.storyProcess;
+        }
+        else if (VillageSceneStory.Instance != null)
+        {
+            saveData.gameProcessSaveData.storyProcess = VillageSceneStory.Instance.storyProcess;
+        }
+        else if (ImaginationSceneStory.Instance != null)
+        {
+            saveData.gameProcessSaveData.storyProcess = ImaginationSceneStory.Instance.storyProcess;
+        }
 
         SerializeSaveData();
 
         hasSave = true;
+    }
+
+    private void EnsureSaveDataInitialized()
+    {
+        if (saveData == null) saveData = new SaveData();
+        if (saveData.playerSaveData == null) saveData.playerSaveData = new PlayerSaveData();
+        if (saveData.inventorySaveData == null) saveData.inventorySaveData = new InventorySaveData();
+        if (saveData.gameProcessSaveData == null) saveData.gameProcessSaveData = new GameProcessSaveData();
+
+        if (saveData.inventorySaveData.materialItemDataList == null)
+            saveData.inventorySaveData.materialItemDataList = new List<PackageItemData>();
+        if (saveData.inventorySaveData.propItemDataList == null)
+            saveData.inventorySaveData.propItemDataList = new List<PackageItemData>();
+        if (saveData.inventorySaveData.equipmentItemDataList == null)
+            saveData.inventorySaveData.equipmentItemDataList = new List<PackageItemData>();
     }
 
     private void DeserializeSaveData()
@@ -92,6 +128,8 @@ public class DataManager : MonoBehaviour
             saveData = formatter.Deserialize(stream) as SaveData;
 
             stream.Close();
+
+            EnsureSaveDataInitialized();
 
             hasSave = true;
         }

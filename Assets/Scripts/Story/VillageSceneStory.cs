@@ -28,14 +28,14 @@ public class VillageSceneStory : MonoBehaviour
     [Header("对话文件")]
     public DialogConfig dialog_3_0;       // 陌生士兵 - 介绍背景信息
     public DialogConfig dialog_3_1;       // 格雷斯 - 最后的对话
-
+    public DialogConfig dialog_3_board;       //木板 - 交互
     [Header("对话物")]
     public DialogObject strangerSoldierNPC;     // 陌生士兵
     public DialogObject garethNPC;               // 格雷斯
-
     [Header("战斗角色")]
     public List<FightAttributes> villageEnemies;    // 村庄中的敌人列表
     public FightAttributes garethLeader;             // 格雷斯
+    public DialogObject boardDialogObject;       // 板子对话物
 
     [Header("位置")]
     public Transform villageEntrancePosition;   // 村庄入口位置
@@ -81,8 +81,11 @@ public class VillageSceneStory : MonoBehaviour
             villageEnemyKilledCount = 0;
         }
 
+        
         UpdateStory();
     }
+
+    
 
     /// <summary>
     /// 更新故事进度
@@ -112,7 +115,7 @@ public class VillageSceneStory : MonoBehaviour
                 break;
 
             case 1: // 任务2：进入村庄，到达村庄门口trigger
-                GameUIManager.Instance.mainTaskTip.UpdateTask("进入村庄", "前往村庄，发现村中正在激烈战斗。");
+                GameUIManager.Instance.mainTaskTip.UpdateTask("进入村庄", "前往村庄，帮助格雷斯");
 
                 // 激活村庄入口触发点
                 if (villageTriggerPoint != null)
@@ -128,7 +131,7 @@ public class VillageSceneStory : MonoBehaviour
                 break;
 
             case 2: // 任务3：斩杀一切阻碍，为了拯救世界
-                GameUIManager.Instance.mainTaskTip.UpdateTask("斩杀一切阻碍", "消灭村庄中的所有敌人，拯救这个被侵袭的村子。");
+                GameUIManager.Instance.mainTaskTip.UpdateTask("斩杀一切", "消灭村庄中的所有被黑魔法控制的村民，让他们安息。");
 
                 // 激活敌人生成点
                 if (villageEnemySpawners != null)
@@ -179,14 +182,26 @@ public class VillageSceneStory : MonoBehaviour
         storyProcess++;
         UpdateStory();
 
-        // 保存游戏进度
-        if (DataManager.Instance != null)
+        // 保存游戏进度（容错：保存失败不应中断剧情推进）
+        try
         {
-            DataManager.Instance.SaveGame();
-            if (GameUIManager.Instance != null && GameUIManager.Instance.messageTip != null)
+            var dm = DataManager.Instance;
+            if (dm != null && dm.saveData != null)
             {
-                GameUIManager.Instance.messageTip.ShowTip("游戏进度已保存");
+                dm.SaveGame();
+                if (GameUIManager.Instance != null && GameUIManager.Instance.messageTip != null)
+                {
+                    GameUIManager.Instance.messageTip.ShowTip("游戏进度已保存");
+                }
             }
+            else
+            {
+                Debug.LogWarning("VillageSceneStory: 跳过保存，DataManager 或 saveData 未初始化。");
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"VillageSceneStory: SaveGame 失败但剧情继续。原因: {e.Message}");
         }
     }
 
@@ -276,5 +291,21 @@ public class VillageSceneStory : MonoBehaviour
             Debug.Log("VillageSceneStory: All enemies defeated! Moving to next stage.");
             DriveProcess();
         }
+    }
+
+    /// <summary>
+    /// 任务2：到达村庄入口触发点时调用，推进到任务3。
+    /// </summary>
+    public void OnVillageEntranceReached()
+    {
+        if (storyProcess != 1) return;
+
+        Debug.Log("VillageSceneStory: 到达村庄入口，任务2完成，推进到任务3。");
+        if (villageTriggerPoint != null)
+        {
+            villageTriggerPoint.SetActive(false);
+        }
+
+        DriveProcess();
     }
 }

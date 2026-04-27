@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// 玩家死亡UI, 包括点击界面重生
@@ -28,7 +29,14 @@ public class DiedUI : MonoBehaviour
     public void Respawn()
     {
         diedPanel.gameObject.SetActive(false);
-        GameObject.FindGameObjectWithTag("Player").GetComponent<PlayerAttributes>().PlayerRespawn();
+
+        // 仅从最近存档点继续：重载当前场景并启用 loadSave
+        var dm = DataManager.Instance;
+        if (dm != null)
+        {
+            dm.loadSave = dm.hasSave;
+        }
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 
     /// <summary>

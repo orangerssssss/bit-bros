@@ -40,6 +40,10 @@ public class FightAISoldier : FightAI
     private float fightStateTimer;// 战斗状态行为计时器
     private float attackTimer;// 攻击计时器
     private float patrolTimer;// 巡逻计时器
+    private float staggerTimer;// 盾挡僵直计时器
+
+    [SerializeField]
+    private float blockedStaggerDuration = 0.65f;// 被盾挡后僵直时长
 
     private float targetMoveSpeed;// 目标移动速度, 用于速度插值, 避免速度的突然变化
     private bool moveForward = true;// 是否向前移动(战斗状态)
@@ -114,7 +118,8 @@ public class FightAISoldier : FightAI
         // Ensure NavMeshAgent is enabled and on the NavMesh. If not on NavMesh, try to sample nearest NavMesh
         if (agent != null)
         {
-            if (!agent.enabled) {
+            if (!agent.enabled)
+            {
                 agent.enabled = true;
                 // If we re-enabled the agent, stop any pending navmesh retry attempts
                 StopNavRetryCoroutine();
@@ -156,6 +161,25 @@ public class FightAISoldier : FightAI
     private void Update()
     {
         if (isDead) return;
+
+        // 被盾挡后短僵直，便于玩家反打
+        if (staggerTimer > 0f)
+        {
+            staggerTimer -= Time.deltaTime;
+
+            if (agent != null && agent.enabled && agent.isOnNavMesh)
+            {
+                agent.isStopped = true;
+                agent.velocity = Vector3.zero;
+            }
+
+            targetMoveSpeed = 0f;
+            if (animator != null)
+            {
+                animator.SetFloat("MoveSpeed", Mathf.Lerp(animator.GetFloat("MoveSpeed"), 0f, 0.25f));
+            }
+            return;
+        }
 
         // Guard against missing components or agents not placed on NavMesh
         if (agent == null || animator == null || fightAttributes == null)
@@ -712,6 +736,29 @@ public class FightAISoldier : FightAI
     {
         attackAudioSource.Stop();
         attackAudioSource.Play();
+    }
+
+    public override void OnShieldBlocked(float staggerDuration)
+    {
+        if (isDead) return;
+
+        float duration = staggerDuration > 0f ? staggerDuration : blockedStaggerDuration;
+        if (duration <= 0f) duration = 0.2f;
+
+        staggerTimer = Mathf.Max(staggerTimer, duration);
+        moveForward = false;
+
+        if (agent != null && agent.enabled && agent.isOnNavMesh)
+        {
+            agent.isStopped = true;
+            agent.velocity = Vector3.zero;
+        }
+
+        // 触发一次受击僵直动画
+        if (animator != null && !animator.GetCurrentAnimatorStateInfo(0).IsTag("Died"))
+        {
+            animator.SetTrigger("Impact");
+        }
     }
 
     private void OnDisable()

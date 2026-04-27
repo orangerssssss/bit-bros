@@ -10,6 +10,10 @@ public class PlayerBlock : MonoBehaviour
     [Header("Options")]
     [Tooltip("If true, hold right mouse to block; if false, single-press triggers block animation")]
     [SerializeField] private bool useHold = false;
+    [Tooltip("单击模式下，弹反判定允许的输入宽限时间（秒）")]
+    [SerializeField] private float parryInputGrace = 0.22f;
+    [Tooltip("弹反窗口安全超时（秒），避免事件遗漏导致永久弹反")]
+    [SerializeField] private float parrySafetyTimeout = 0.6f;
 
     // runtime flag used by animation events
     private bool isParryWindow = false;
@@ -19,6 +23,8 @@ public class PlayerBlock : MonoBehaviour
     private GameObject equippedShield = null;
     private bool loggedMissingIsBlockingParam = false;
     private bool loggedMissingBlockTriggerParam = false;
+    private float lastParryInputTime = -999f;
+    private float parryWindowExpireTime = -1f;
 
     private void Reset()
     {
@@ -33,6 +39,12 @@ public class PlayerBlock : MonoBehaviour
     private void Update()
     {
         if (animator == null) return;
+
+        // 保险：若 OnParryEnd 动画事件未触发，超时后自动关闭弹反窗口
+        if (isParryWindow && Time.time > parryWindowExpireTime)
+        {
+            isParryWindow = false;
+        }
 
         if (useHold)
         {
@@ -58,6 +70,7 @@ public class PlayerBlock : MonoBehaviour
             {
                 // set runtime flag briefly (useful if other systems check IsBlocking)
                 isBlocking = true;
+                lastParryInputTime = Time.time;
                 if (AnimatorHasParameter(blockTrigger))
                 {
                     animator.SetTrigger(blockTrigger);
@@ -76,17 +89,39 @@ public class PlayerBlock : MonoBehaviour
     // Called by Animation Event at parry window start
     public void OnParryStart()
     {
+        if (!HasShield())
+        {
+            isParryWindow = false;
+            return;
+        }
+
         isParryWindow = true;
+        parryWindowExpireTime = Time.time + Mathf.Max(0.05f, parrySafetyTimeout);
+        Debug.Log("格挡开启！");
     }
 
     // Called by Animation Event at parry window end
     public void OnParryEnd()
     {
         isParryWindow = false;
+        Debug.Log("格挡结束！");
     }
 
     // Example helper for enemy scripts to query
-    public bool IsInParryWindow() => isParryWindow;
+    public bool IsInParryWindow()
+    {
+        if (!HasShield()) return false;
+        if (!isParryWindow) return false;
+
+        // 按住模式：必须仍处于格挡状态
+        if (useHold)
+        {
+            return isBlocking;
+        }
+
+        // 单击模式：要求最近确实有一次有效格挡输入
+        return Time.time - lastParryInputTime <= Mathf.Max(0.02f, parryInputGrace);
+    }
 
     // Whether player is currently holding block (useHold mode)
     // Only returns true when a shield is equipped

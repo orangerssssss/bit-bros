@@ -8,6 +8,7 @@ using UnityEngine;
 public class BoxAttackArea : AttackArea
 {
     private BoxCollider box;// Box碰撞器，该组件实际没有被启用, 用于方便在Unity中编辑碰撞区域
+    [SerializeField] private float shieldBlockStaggerTime = 0.65f;
 
     private void Awake()
     {
@@ -22,6 +23,8 @@ public class BoxAttackArea : AttackArea
     public override bool AreaDamage(int attack, bool isPhysical)
     {
         bool hitTarget = false;
+        FightAI attackerAI = GetComponentInParent<FightAI>();
+        HashSet<CharacterAttributes> processedTargets = new HashSet<CharacterAttributes>();
         // Box检测 (包容 child/parent 的 CharacterAttributes)
         Vector3 center = box.transform.TransformPoint(box.center);
         Vector3 halfExtents = box.size / 2f;
@@ -40,9 +43,28 @@ public class BoxAttackArea : AttackArea
             CharacterAttributes character = t.GetComponent<CharacterAttributes>();
             if (character == null) character = t.GetComponentInParent<CharacterAttributes>();
             if (character == null) character = t.GetComponentInChildren<CharacterAttributes>();
-            if (character != null)
+            if (character != null && character.combatCamp != this.combatCamp && processedTargets.Add(character))
             {
+                bool blockedByShield = false;
+                if (character is PlayerAttributes)
+                {
+                    var pb = character.GetComponent<PlayerBlock>();
+                    if (pb == null) pb = character.GetComponentInParent<PlayerBlock>();
+                    if (pb == null) pb = character.GetComponentInChildren<PlayerBlock>();
+                    if (pb != null)
+                    {
+                        // 仅在“弹反窗口”内才给予敌人僵直奖励
+                        blockedByShield = pb.IsInParryWindow();
+                    }
+                }
+
                 character.GetAttack(attack, isPhysical);
+
+                // 玩家成功举盾挡住这一击后，让攻击者进入短僵直
+                if (blockedByShield && attackerAI != null)
+                {
+                    attackerAI.OnShieldBlocked(shieldBlockStaggerTime);
+                }
                 hitTarget = true;
             }
         }
@@ -59,10 +81,29 @@ public class BoxAttackArea : AttackArea
                 CharacterAttributes ch = t.GetComponent<CharacterAttributes>();
                 if (ch == null) ch = t.GetComponentInParent<CharacterAttributes>();
                 if (ch == null) ch = t.GetComponentInChildren<CharacterAttributes>();
-                if (ch != null && ch.combatCamp != this.combatCamp)
+                if (ch != null && ch.combatCamp != this.combatCamp && processedTargets.Add(ch))
                 {
                     Debug.Log($"{name} BoxAttackArea: Fallback hit -> {col.transform.name} (camp={ch.combatCamp})");
+
+                    bool blockedByShield = false;
+                    if (ch is PlayerAttributes)
+                    {
+                        var pb = ch.GetComponent<PlayerBlock>();
+                        if (pb == null) pb = ch.GetComponentInParent<PlayerBlock>();
+                        if (pb == null) pb = ch.GetComponentInChildren<PlayerBlock>();
+                        if (pb != null)
+                        {
+                            // 仅在“弹反窗口”内才给予敌人僵直奖励
+                            blockedByShield = pb.IsInParryWindow();
+                        }
+                    }
+
                     ch.GetAttack(attack, isPhysical);
+
+                    if (blockedByShield && attackerAI != null)
+                    {
+                        attackerAI.OnShieldBlocked(shieldBlockStaggerTime);
+                    }
                     hitTarget = true;
                 }
             }

@@ -63,6 +63,34 @@ public class ImaginationSceneStory : MonoBehaviour
     private float dialogSystemPollInterval = 0.2f;
     private Coroutine openDialogRetryCoroutine = null;
 
+    /// <summary>
+    /// 解析导航目标：若标记误配到玩家(或其子物体)，自动回退到备用目标。
+    /// </summary>
+    private Transform ResolveValidTarget(Transform preferred, Transform fallback, string targetName)
+    {
+        Transform player = null;
+        GameObject playerGo = GameObject.FindGameObjectWithTag("Player");
+        if (playerGo != null) player = playerGo.transform;
+
+        bool preferredInvalid = preferred == null;
+        if (!preferredInvalid && player != null)
+        {
+            if (preferred == player || preferred.IsChildOf(player))
+            {
+                preferredInvalid = true;
+                Debug.LogWarning($"{name} ImaginationSceneStory: {targetName} 误指向玩家(或玩家子物体)，将使用回退目标。");
+            }
+        }
+
+        Transform result = preferredInvalid ? fallback : preferred;
+        if (result == null)
+        {
+            Debug.LogWarning($"{name} ImaginationSceneStory: {targetName} 与回退目标都为空，无法设置导航标记。");
+        }
+
+        return result;
+    }
+
     private void Start()
     {
 
@@ -112,9 +140,8 @@ public class ImaginationSceneStory : MonoBehaviour
         // 监听对话结束事件
         GameEventManager.Instance.dialogConfigEndEvent.AddListener(storyListener.CheckDialogEnd);
 
-        //修改点
-        //监听敌人死亡事件
-        GameEventManager.Instance.fightBeforeDeathEvent.AddListener(storyListener.OnEnemyDeath);
+        // 监听角色死亡前事件（项目里实际触发的是 characterBeforeDeathEvent）
+        GameEventManager.Instance.characterBeforeDeathEvent.AddListener(storyListener.OnEnemyDeath);
     }
 
     /// <summary>
@@ -137,9 +164,9 @@ public class ImaginationSceneStory : MonoBehaviour
 
                 break;
 
-            case 1:// 对话结束 - 显示主线任务"斩杀敌人"
-                // 更新主线任务
-                GameUIManager.Instance.mainTaskTip.UpdateTask("斩杀梦境中的敌人", "消灭眼前的威胁，才能逃离这里。");
+            case 1:// 对话结束 - 逃离梦境(阶段1: 清除阻碍)
+                // 统一为同一个主线任务：逃离梦境
+                GameUIManager.Instance.mainTaskTip.UpdateTask("逃离梦境", "斩杀一切阻挡你的人吧");
                 // 激活敌人
                 if (enemyObject != null)
                 {
@@ -152,19 +179,35 @@ public class ImaginationSceneStory : MonoBehaviour
                     }
                 }
 
-                // 设置目标标记指向敌人
-                if (mark_enemy != null)
-                    GameUIManager.Instance.destinationMark.SetTarget(mark_enemy);
+                // 设置目标标记指向敌人（持续引导直到敌人被击败）
+                // 优先使用 mark_enemy；若未配置或误配到 Player，则回退到敌人本体
+                Transform enemyFallback = imaginationEnemy != null ? imaginationEnemy.transform : null;
+                Transform enemyTarget = ResolveValidTarget(mark_enemy, enemyFallback, "mark_enemy");
+
+                if (enemyTarget != null)
+                {
+                    GameUIManager.Instance.destinationMark.SetTarget(enemyTarget);
+                    Debug.Log($"{name} ImaginationSceneStory: 敌人阶段目标 -> {enemyTarget.name}");
+                }
+                else
+                {
+                    Debug.LogWarning($"{name} ImaginationSceneStory: 无法设置敌人导航目标，请检查 mark_enemy 或 imaginationEnemy 引用。");
+                }
 
                 break;
 
-            case 2:// 敌人被击杀 - 触发离开梦境逻辑
+            case 2:// 敌人被击杀 - 逃离梦境(阶段2: 前往出口)
 
-                // 更新任务状态
-                GameUIManager.Instance.mainTaskTip.UpdateTask("离开梦境", "你成功了，现在逃离这个梦境吧。");
+                // 同一个任务内切换到下一阶段
+                GameUIManager.Instance.mainTaskTip.UpdateTask("逃离梦境", "梦境即将塌陷，快离开梦境吧。");
 
-                // 触发离开梦境逻辑（延迟1秒演出效果）
-                StartCoroutine(ExitImaginationAfterDelay(1.0f));
+                // 敌人死亡后将目标切换到出口
+                Transform exitTarget = ResolveValidTarget(mark_Exit, Exit, "mark_Exit");
+                if (exitTarget != null)
+                {
+                    GameUIManager.Instance.destinationMark.SetTarget(exitTarget);
+                    Debug.Log($"{name} ImaginationSceneStory: 出口阶段目标 -> {exitTarget.name}");
+                }
 
                 break;
         }
@@ -463,16 +506,16 @@ public class ImaginationSceneListener
     /// <summary>
     /// 敌人被击杀回调
     /// </summary>
-    public void OnEnemyDeath(FightAttributes enemy)
+    public void OnEnemyDeath(CharacterAttributes character)
     {
-        // 检查被杀死的敌人是否是梦境敌人
-        if (enemy == ImaginationSceneStory.Instance.imaginationEnemy)
+        // 只处理梦境指定敌人的死亡
+        FightAttributes enemy = character as FightAttributes;
+        if (enemy != null && enemy == ImaginationSceneStory.Instance.imaginationEnemy)
         {
             ImaginationSceneStory.Instance.DriveProcess();
 
-            //修改点 3
-            // 移除此监听
-            //GameEventManager.Instance.characterBeforeDeathEvent.RemoveListener(OnEnemyDeath);
+            // 移除此监听，避免重复推进
+            GameEventManager.Instance.characterBeforeDeathEvent.RemoveListener(OnEnemyDeath);
         }
     }
 }

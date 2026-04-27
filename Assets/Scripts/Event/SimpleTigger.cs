@@ -14,6 +14,13 @@ public class SimpleTrigger : MonoBehaviour
         {
             triggered = true;
 
+            // 村庄场景优先：用于任务2“进入村庄”完成判定
+            if (VillageSceneStory.Instance != null)
+            {
+                VillageSceneStory.Instance.OnVillageEntranceReached();
+                return;
+            }
+
             // 根据任务ID调用 MainSceneStory 中对应的回调
             if (targetTaskId == 1)
             {
