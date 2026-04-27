@@ -131,6 +131,32 @@ public abstract class CharacterAttributes : MonoBehaviour
         if (attack <= 0 || health <= 0) return;
         if (protect) return;
 
+        // Parry / block integration: if this GameObject has PlayerBlock, check parry window or hold-block
+        var playerBlock = GetComponent<PlayerBlock>();
+        if (playerBlock != null)
+        {
+            if (playerBlock.IsInParryWindow())
+            {
+                Debug.Log($"{gameObject.name} CharacterAttributes: Parried attack.");
+                // Parry — treat as miss/counter; do not apply damage
+                // notify combat controller to play shield effects
+                var pcc = GetComponent<PlayerCombatController>();
+                if (pcc != null) pcc.OnShieldBlocked();
+                MissReact();
+                return;
+            }
+
+            if (playerBlock.IsBlocking())
+            {
+                Debug.Log($"{gameObject.name} CharacterAttributes: Blocked attack (holding).");
+                // Holding block — treat as blocked (no damage). Optionally trigger block reaction.
+                var pcc2 = GetComponent<PlayerCombatController>();
+                if (pcc2 != null) pcc2.OnShieldBlocked();
+                MissReact();
+                return;
+            }
+        }
+
         int damage = ResistDamage(attack, isPhysical);
         health = Mathf.Clamp(health - damage, 0, MaxHealth);
 

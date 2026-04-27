@@ -30,6 +30,14 @@ public class PlayerCombatController : MonoBehaviour
     private Transform shieldVisualParent;
     private GameObject equippedShieldModel; // reference to the equipped (static or runtime-instantiated) visual
 
+    [Header("Shield Effects")]
+    [Tooltip("Particle system prefab to spawn when shield blocks an attack")]
+    [SerializeField] private ParticleSystem shieldBlockVfxPrefab;
+    [Tooltip("Sound to play when shield blocks an attack")]
+    [SerializeField] private AudioClip shieldBlockSfx;
+    [Tooltip("Scale multiplier for spawned VFX")]
+    [SerializeField] private float shieldVfxScale = 1f;
+
     [Header("Shield Pose (optional)")]
     [Tooltip("Force script-driven shield pose even if Animator parameter exists (useful for quick testing)")]
     [SerializeField] private bool forceManualShieldPose = false;
@@ -200,6 +208,47 @@ private float lastShieldDamageTime;
         // Smoothly blend local transform
         equippedShieldModel.transform.localPosition = Vector3.Lerp(equippedShieldModel.transform.localPosition, targetLocalPos, Time.deltaTime * shieldPoseLerpSpeed);
         equippedShieldModel.transform.localRotation = Quaternion.Slerp(equippedShieldModel.transform.localRotation, targetLocalRot, Time.deltaTime * shieldPoseLerpSpeed);
+    }
+
+    /// <summary>
+    /// Play shield block VFX/SFX at the shield location.
+    /// </summary>
+    public void PlayShieldBlockEffect(Vector3 worldPos, Vector3 worldNormal)
+    {
+        if (shieldBlockVfxPrefab != null)
+        {
+            var v = Instantiate(shieldBlockVfxPrefab, worldPos, Quaternion.LookRotation(worldNormal));
+            v.transform.localScale = Vector3.one * shieldVfxScale;
+            v.Play();
+            Destroy(v.gameObject, 5f);
+        }
+
+        if (combatAudioSource != null && shieldBlockSfx != null)
+        {
+            combatAudioSource.PlayOneShot(shieldBlockSfx);
+        }
+    }
+
+    /// <summary>
+    /// Convenience callback when an incoming attack is blocked/parried by this player.
+    /// Computes an approximate spawn position (shield model or holder) and triggers effects.
+    /// </summary>
+    public void OnShieldBlocked()
+    {
+        Vector3 pos = transform.position + transform.forward * 0.5f;
+        Vector3 normal = transform.forward;
+        if (equippedShieldModel != null)
+        {
+            pos = equippedShieldModel.transform.position;
+            normal = equippedShieldModel.transform.forward;
+        }
+        else if (shieldHolder != null)
+        {
+            pos = shieldHolder.position;
+            normal = shieldHolder.forward;
+        }
+
+        PlayShieldBlockEffect(pos, normal);
     }
 
     private void OnEnable()
@@ -432,6 +481,13 @@ public void EquipShield(int shieldID)
                 model.equipmentModel.SetActive(true);
                 EnableRenderersRecursively(model.equipmentModel, true);
                 SetLayerRecursively(model.equipmentModel, 2);
+                // Ensure the equipped shield model persists across scene loads (call DontDestroyOnLoad on root)
+                try
+                {
+                    var rootGo = model.equipmentModel.transform.root != null ? model.equipmentModel.transform.root.gameObject : model.equipmentModel;
+                    Object.DontDestroyOnLoad(rootGo);
+                }
+                catch { }
                 Debug.Log($"EquipShield: moved static shield model '{model.equipmentModel.name}' to shieldHolder");
                 LogGameObjectInfo(model.equipmentModel);
                 Debug.Log($"EquipShield diagnostics: active={model.equipmentModel.activeInHierarchy}, layer={model.equipmentModel.layer}, localPos={model.equipmentModel.transform.localPosition}, lossyScale={model.equipmentModel.transform.lossyScale}");
@@ -439,6 +495,9 @@ public void EquipShield(int shieldID)
                     Debug.Log($"MainCamera cullingMask for layer 2 (IgnoreRaycast) = {((Camera.main.cullingMask & (1<<2))!=0)} (mask={Camera.main.cullingMask})");
                 // remember reference so Activate/Deactivate can toggle visibility instead of instantiating duplicates
                 equippedShieldModel = model.equipmentModel;
+                // inform PlayerBlock (if present) that a shield is equipped so blocking logic can use it
+                var pb_static = GetComponent<PlayerBlock>();
+                if (pb_static != null) pb_static.SetEquippedShield(equippedShieldModel);
                 // initialize manual pose data (account for parent lossy scale so offsets remain sane)
                 var poseParent = equippedShieldModel.transform.parent;
                 Vector3 parentLossyForPose = poseParent != null ? poseParent.lossyScale : Vector3.one;
@@ -503,11 +562,21 @@ public void EquipShield(int shieldID)
                     }
                     SetLayerRecursively(runtimeShield, 2);
                     EnableRenderersRecursively(runtimeShield, true);
+                    // make runtime-instantiated shield survive scene switches (mark the root GameObject)
+                    try
+                    {
+                        var rootRs = runtimeShield.transform.root != null ? runtimeShield.transform.root.gameObject : runtimeShield;
+                        Object.DontDestroyOnLoad(rootRs);
+                    }
+                    catch { }
                     Debug.Log($"EquipShield: instantiated runtime shield '{runtimeShield.name}' under {(runtimeShield.transform.parent==shieldHolder?"shieldHolder":"shieldVisualParent")}");
                     LogGameObjectInfo(runtimeShield);
                     if (Camera.main != null)
                         Debug.Log($"MainCamera cullingMask for layer 2 (IgnoreRaycast) = {((Camera.main.cullingMask & (1<<2))!=0)} (mask={Camera.main.cullingMask})");
                     equippedShieldModel = runtimeShield;
+                    // inform PlayerBlock (if present) that a shield is equipped so blocking logic can use it
+                    var pb_runtime = GetComponent<PlayerBlock>();
+                    if (pb_runtime != null) pb_runtime.SetEquippedShield(equippedShieldModel);
                     // initialize manual pose data for runtime instance (account for parent lossy scale)
                     var rposeParent = equippedShieldModel.transform.parent;
                     Vector3 rparentLossyForPose = rposeParent != null ? rposeParent.lossyScale : Vector3.one;
@@ -672,6 +741,13 @@ public bool IsShieldActive()
                         runtimeWeaponInstance.transform.localScale = it.itemPrefab.transform.localScale;
                         // Ensure runtime-instantiated prefab doesn't block camera raycasts
                         SetLayerRecursively(runtimeWeaponInstance, 2);
+                        // ensure runtime instance persists across scene loads (mark the root GameObject)
+                        try
+                        {
+                            var rootW = runtimeWeaponInstance.transform.root != null ? runtimeWeaponInstance.transform.root.gameObject : runtimeWeaponInstance;
+                            Object.DontDestroyOnLoad(rootW);
+                        }
+                        catch { }
                         Debug.Log($"SwitchWeapon: instantiated runtime weapon '{runtimeWeaponInstance.name}' under '{weaponParent.name}'");
                         LogGameObjectInfo(runtimeWeaponInstance);
                         EnableRenderersRecursively(runtimeWeaponInstance, true);
