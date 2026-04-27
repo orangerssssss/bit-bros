@@ -38,7 +38,7 @@ public class ImaginationSceneStory : MonoBehaviour
     public FightAttributes imaginationEnemy;// 梦境中的敌人
 
     [Header("位置")]
-    public Transform caveEntry;// 梦境入口
+    public Transform Exit;// 梦境出口
     public Transform enemySpawnPoint;// 敌人出现点
 
     [Header("物体")]
@@ -46,7 +46,7 @@ public class ImaginationSceneStory : MonoBehaviour
 
 
     [Header("标识")]
-    public Transform mark_caveEntry;// 梦境入口标记
+    public Transform mark_Exit;// 梦境出口标记
     public Transform mark_enemy;// 敌人标记
 
     [Header("场景管理")]
@@ -134,13 +134,7 @@ public class ImaginationSceneStory : MonoBehaviour
                 // 临时禁用敌人
                 if (enemyObject != null)
                     enemyObject.SetActive(false);
-                // 播放开场对话
-                // NOTE: avoid starting the opening dialog coroutine immediately at Start
-                // because UI/Dialog systems may not be initialized yet and a retry
-                // coroutine will be spawned repeatedly. The Update() loop will
-                // trigger PlayOpeningDialog once the UI and DialogDisplayer are ready
-                // after a short delay.
-                //StartCoroutine(PlayOpeningDialogAfterDelay(0f));
+
                 break;
 
             case 1:// 对话结束 - 显示主线任务"斩杀敌人"
@@ -167,7 +161,7 @@ public class ImaginationSceneStory : MonoBehaviour
             case 2:// 敌人被击杀 - 触发离开梦境逻辑
 
                 // 更新任务状态
-                GameUIManager.Instance.mainTaskTip.UpdateTask("离开梦境", "胜利！现在逃离这个梦境吧。");
+                GameUIManager.Instance.mainTaskTip.UpdateTask("离开梦境", "你成功了，现在逃离这个梦境吧。");
 
                 // 触发离开梦境逻辑（延迟1秒演出效果）
                 StartCoroutine(ExitImaginationAfterDelay(1.0f));

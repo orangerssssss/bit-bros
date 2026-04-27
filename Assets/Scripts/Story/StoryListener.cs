@@ -74,18 +74,7 @@ public class StoryListener
     }
 
 
-    /// <summary>
-    /// 查看告示完毕，去与梅林对话
-    /// </summary>
-    public void StoryProcess3_0(DialogConfig dialog)
-    {
-        if (dialog == MainSceneStory.Instance.dialog_3_0)
-        {
-            GameEventManager.Instance.dialogConfigEndEvent.RemoveListener(StoryProcess3_0);
 
-            MainSceneStory.Instance.DriveProcess();
-        }
-    }
 
     /// <summary>
     /// 与梅林对话完毕，播放离开动画
@@ -454,6 +443,36 @@ public class StoryListener
             MainSceneStory.Instance.sideSoldierNPC.AddSpecialDialog(MainSceneStory.Instance.sideDialog_1_2);
             PlayerInputManager.Instance.moveController.SetPositionAndRotation(MainSceneStory.Instance.sideSoldierNPCPosition);
             MainSceneStory.Instance.sideSoldierNPC.Interact();
+        }
+    }
+
+    // ==================== VillageSceneStory 事件处理 ====================
+
+    /// <summary>
+    /// 任务1：与陌生士兵对话完毕，推进到任务2（进入村庄）
+    /// </summary>
+    public void StoryProcess3_0(DialogConfig dialog)
+    {
+        if (dialog == VillageSceneStory.Instance.dialog_3_0)
+        {
+            Debug.Log("VillageSceneStory: 陌生士兵对话完毕 - StoryProcess3_0，推进到任务2");
+
+            GameEventManager.Instance.dialogConfigEndEvent.RemoveListener(StoryProcess3_0);
+            VillageSceneStory.Instance.DriveProcess();
+        }
+    }
+
+    /// <summary>
+    /// 任务4：与格雷斯对话完毕，推进到任务5（继续前进）
+    /// </summary>
+    public void StoryProcess3_1(DialogConfig dialog)
+    {
+        if (dialog == VillageSceneStory.Instance.dialog_3_1)
+        {
+            Debug.Log("VillageSceneStory: 格雷斯对话完毕 - StoryProcess3_1，推进到任务5");
+
+            GameEventManager.Instance.dialogConfigEndEvent.RemoveListener(StoryProcess3_1);
+            VillageSceneStory.Instance.DriveProcess();
         }
     }
 }

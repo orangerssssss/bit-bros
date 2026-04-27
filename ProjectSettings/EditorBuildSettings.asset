@@ -15,7 +15,7 @@ EditorBuildSettings:
     path: Assets/Scenes/Imagination.scene
     guid: 51860676ed1562a46b21cf415cfb44d9
   - enabled: 1
-    path: Assets/Scenes/VillageScene.unity
+    path: Assets/Scenes/MainScene.unity
     guid: 9fc0d4010bbf28b4594072e72b8655ab
   m_BuildProfiles: []
   m_configObjects: {}
