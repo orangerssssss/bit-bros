@@ -16,6 +16,8 @@ public class PlayerCombatController : MonoBehaviour
     [SerializeField]
     private List<PlayerEquipmentModel> armorModels;// 防具ID与玩家防具的对应关系
     public AudioSource combatAudioSource;
+    [Tooltip("Dedicated AudioSource for hit SFX (created automatically if empty)")]
+    public AudioSource hitAudioSource;
 
     [HideInInspector]
     public PlayerMoveController playerMoveController;// 玩家移动组件
@@ -35,6 +37,8 @@ public class PlayerCombatController : MonoBehaviour
     [SerializeField] private ParticleSystem shieldBlockVfxPrefab;
     [Tooltip("Sound to play when shield blocks an attack")]
     [SerializeField] private AudioClip shieldBlockSfx;
+    [Tooltip("Volume multiplier for shield block SFX (Inspector adjustable)")]
+    [SerializeField, Range(0f, 3f)] private float shieldBlockSfxVolume = 1f;
     [Tooltip("Scale multiplier for spawned VFX")]
     [SerializeField] private float shieldVfxScale = 1f;
 
@@ -125,6 +129,20 @@ private float lastShieldDamageTime;
             }
             if (weaponParent != null)
                 weaponParent.SetActive(anyActive);
+        }
+        // Ensure audio sources: try to use existing AudioSource for combatAudioSource,
+        // and create a dedicated child AudioSource for hit SFX if not assigned.
+        if (combatAudioSource == null)
+        {
+            combatAudioSource = GetComponent<AudioSource>();
+        }
+        if (hitAudioSource == null)
+        {
+            var go = new GameObject("HitAudioSource");
+            go.transform.SetParent(this.transform, false);
+            hitAudioSource = go.AddComponent<AudioSource>();
+            hitAudioSource.playOnAwake = false;
+            hitAudioSource.spatialBlend = 0f; // 2D
         }
         Debug.Log($"PlayerCombatController Awake: equipedWeaponID={equipedWeaponID}, weaponParent={(weaponParent!=null)}, weaponModelsCount={(weaponModels!=null?weaponModels.Count:0)}");
 
@@ -225,7 +243,7 @@ private float lastShieldDamageTime;
 
         if (combatAudioSource != null && shieldBlockSfx != null)
         {
-            combatAudioSource.PlayOneShot(shieldBlockSfx);
+            combatAudioSource.PlayOneShot(shieldBlockSfx, shieldBlockSfxVolume);
         }
     }
 

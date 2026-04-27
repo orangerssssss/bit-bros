@@ -17,6 +17,8 @@ public class PlayerSkill_CommonAttack : MonoBehaviour
     [SerializeField]
     private List<AudioClip> sfx_CommonAttack = new List<AudioClip>();
     [SerializeField]
+    private List<AudioClip> sfx_CommonAttackHit = new List<AudioClip>();
+    [SerializeField]
     private BoxAttackArea attackBox;// 普通攻击区域
 
     private void Awake()
@@ -107,6 +109,14 @@ public class PlayerSkill_CommonAttack : MonoBehaviour
     {
         if (attackBox.AreaDamage(playerAttributes.PhysicalAttack, true))
         {
+            // Play hit SFX on dedicated hit AudioSource if available, otherwise fallback to combatAudioSource
+            AudioSource hitSrc = null;
+            if (combatController != null)
+                hitSrc = combatController.hitAudioSource != null ? combatController.hitAudioSource : combatController.combatAudioSource;
+            if (hitSrc != null && sfx_CommonAttackHit != null && index >= 0 && index < sfx_CommonAttackHit.Count && sfx_CommonAttackHit[index] != null)
+            {
+                hitSrc.PlayOneShot(sfx_CommonAttackHit[index]);
+            }
             combatController.PlayerHitPause(0.06f);
             StartCoroutine(AttackParticlePause(index, 0.06f));
         }

@@ -27,6 +27,8 @@ public class FightAIBoar : FightAI
 
     private void Update()
     {
+        if (isDead) return;
+
         if (agent.enabled)
         {
             // 在非移动状态且非动画过渡状态停止寻路
@@ -69,6 +71,31 @@ public class FightAIBoar : FightAI
         enemyCollider.enabled = true;
         agent.enabled = true;
         InitIdlePoints();
+
+        // clear dead flag and re-enable colliders/character controller if any
+        isDead = false;
+        try
+        {
+            var cc = GetComponent<CharacterController>();
+            if (cc != null) cc.enabled = true;
+            var cols = GetComponentsInChildren<Collider>(true);
+            foreach (var c in cols) c.enabled = true;
+        }
+        catch { }
+
+        // Restore Rigidbody to kinematic state when resetting AI (for pooled enemies)
+        try
+        {
+            var rb = GetComponent<Rigidbody>();
+            if (rb != null)
+            {
+                rb.velocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+                rb.isKinematic = true;
+                rb.useGravity = false;
+            }
+        }
+        catch { }
     }
 
     /// <summary>
