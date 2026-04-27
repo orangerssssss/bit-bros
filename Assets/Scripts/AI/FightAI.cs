@@ -24,6 +24,9 @@ public abstract class FightAI : MonoBehaviour
     [HideInInspector]
     public EnemySummonPoint summonPoint;// 生成点. 如果敌人由生成点生成, 则此值不为空, 在销毁时有不同行为
 
+    // state flag to indicate the character is dead so derived Update loops can stop acting
+    protected bool isDead = false;
+
     private void Awake()
     {
         InitFightAI();
@@ -43,7 +46,19 @@ public abstract class FightAI : MonoBehaviour
     /// </summary>
     public virtual void DiedReact()
     {
-        animator.SetTrigger("Died");
+        // mark dead early so Update loops stop performing movement
+        isDead = true;
+
+        // disable any CharacterController to avoid it driving the transform after death
+        try
+        {
+            var cc = GetComponent<CharacterController>();
+            if (cc != null) cc.enabled = false;
+        }
+        catch { }
+
+        // keep colliders enabled so the corpse rests on ground (do not disable colliders)
+
         // Ensure animator doesn't move root (avoid animation pushing corpse into air)
         if (animator != null && animator.applyRootMotion)
         {
@@ -51,11 +66,29 @@ public abstract class FightAI : MonoBehaviour
             Debug.Log($"{name} FightAI: Disabled animator.applyRootMotion on death to avoid root motion lifting the corpse.");
         }
 
+        // Trigger death animation (animator now not applying root motion)
+        if (animator != null) animator.SetTrigger("Died");
+
         // Try to snap visual root to ground to avoid hovering corpses
         TrySnapToGround();
 
-        enemyCollider.enabled = false;
-        agent.enabled = false;
+        // disable agent so AI stops moving; keep colliders so the corpse stays on ground
+        if (agent != null) agent.enabled = false;
+
+        // If there is a Rigidbody present, ensure it is kinematic so physics doesn't push the corpse through geometry.
+        try
+        {
+            var rb = GetComponent<Rigidbody>();
+            if (rb != null)
+            {
+                rb.velocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+                rb.isKinematic = true; // keep kinematic so animation pose is preserved
+                rb.useGravity = false;
+                Debug.Log($"{name} FightAI: Set Rigidbody kinematic on death (isKinematic=true).");
+            }
+        }
+        catch { }
 
         // 开始销毁协程
         if (gameObject.activeInHierarchy) StartCoroutine(EnemyDestroy());
@@ -132,15 +165,8 @@ public abstract class FightAI : MonoBehaviour
     /// </summary>
     protected IEnumerator EnemyDestroy()
     {
-        // 敌人缓慢下落
+        // Wait for death animation / corpseDelay then remove the corpse (no physics-driven sinking)
         yield return new WaitForSeconds(corpseDelay);
-        float fallTimer = 3.0f;
-        while (fallTimer > 0)
-        {
-            transform.Translate(-Vector3.up * Time.deltaTime * 0.5f);
-            fallTimer -= Time.deltaTime;
-            yield return null;
-        }
 
         // 销毁
         if (!summonPoint)

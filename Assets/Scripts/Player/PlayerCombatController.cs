@@ -16,12 +16,64 @@ public class PlayerCombatController : MonoBehaviour
     [SerializeField]
     private List<PlayerEquipmentModel> armorModels;// 防具ID与玩家防具的对应关系
     public AudioSource combatAudioSource;
+    [Tooltip("Dedicated AudioSource for hit SFX (created automatically if empty)")]
+    public AudioSource hitAudioSource;
 
     [HideInInspector]
     public PlayerMoveController playerMoveController;// 玩家移动组件
     [HideInInspector]
-    public Animator animator;// 玩家动画组件
+    public Animator animator;// 玩家动画组件`
 
+    [Header("Shield Visuals")]
+    [SerializeField] private Transform shieldHolder;
+    [SerializeField] private GameObject shieldPrefab;
+    private GameObject shieldInstance;
+    private bool hasIsShieldingParam = false;
+    private Transform shieldVisualParent;
+    private GameObject equippedShieldModel; // reference to the equipped (static or runtime-instantiated) visual
+
+    [Header("Shield Effects")]
+    [Tooltip("Particle system prefab to spawn when shield blocks an attack")]
+    [SerializeField] private ParticleSystem shieldBlockVfxPrefab;
+    [Tooltip("Sound to play when shield blocks an attack")]
+    [SerializeField] private AudioClip shieldBlockSfx;
+    [Tooltip("Volume multiplier for shield block SFX (Inspector adjustable)")]
+    [SerializeField, Range(0f, 3f)] private float shieldBlockSfxVolume = 1f;
+    [Tooltip("Scale multiplier for spawned VFX")]
+    [SerializeField] private float shieldVfxScale = 1f;
+
+    [Header("Shield Pose (optional)")]
+    [Tooltip("Force script-driven shield pose even if Animator parameter exists (useful for quick testing)")]
+    [SerializeField] private bool forceManualShieldPose = false;
+    [Tooltip("Enable manual pose blending when Animator parameter is not present or forced")]
+    [SerializeField] private bool enableManualShieldPose = true;
+    [Tooltip("Local position offset applied for the blocking pose (added to rest local position)")]
+    [SerializeField] private Vector3 shieldBlockLocalPosOffset = new Vector3(0f, 0.02f, -0.05f);
+    [Tooltip("Local rotation (euler) offset applied for the blocking pose")]
+    [SerializeField] private Vector3 shieldBlockLocalRotOffset = new Vector3(-20f, 0f, 0f);
+    [Tooltip("Speed of pose blending (higher = snappier)")]
+    [SerializeField] private float shieldPoseLerpSpeed = 10f;
+
+    private Vector3 shieldRestLocalPos;
+    private Quaternion shieldRestLocalRot;
+    private Vector3 shieldBlockLocalPos;
+    private Quaternion shieldBlockLocalRot;
+    private bool shieldPoseInitialized = false;
+
+
+[HideInInspector]
+public int equipedArmorID; // Shield yang sedang dipakai
+
+[HideInInspector]
+public bool isShielding = false; // Status blocking
+
+[Header("Shield Stats")]
+[SerializeField] private float maxShieldHealth = 100f;
+[SerializeField] private float shieldRechargeRate = 15f;
+[SerializeField] private float shieldRechargeDelay = 2f;
+
+private float currentShieldHealth;
+private float lastShieldDamageTime;
     private float hitPauseTimer;// 击打顿帧计时器
     [HideInInspector]
     public int equipedWeaponID;// 装备中的武器
@@ -38,6 +90,20 @@ public class PlayerCombatController : MonoBehaviour
     {
         playerMoveController = GetComponent<PlayerMoveController>();
         animator = GetComponent<Animator>();
+        hasIsShieldingParam = HasAnimatorParameter("isShielding");
+        FindShieldHolderIfNull();
+        // find or create a parent for shield visuals that is always active
+        var t = transform.Find("ShieldVisualParent");
+        if (t != null) shieldVisualParent = t;
+        else
+        {
+            var go = new GameObject("ShieldVisualParent");
+            shieldVisualParent = go.transform;
+            shieldVisualParent.SetParent(this.transform, false);
+            shieldVisualParent.localPosition = Vector3.zero;
+            shieldVisualParent.localRotation = Quaternion.identity;
+            shieldVisualParent.localScale = Vector3.one;
+        }
 
         // 为动画添加旋转事件, 玩家在释放此动画对应的技能时会立刻改变朝向
         AddEventToClips("PlayerRotationUpdate", 0.1f, new List<string> { "Dodge", "CommonAttack_0", "CommonAttack_1", "CommonAttack_2" });
@@ -64,13 +130,143 @@ public class PlayerCombatController : MonoBehaviour
             if (weaponParent != null)
                 weaponParent.SetActive(anyActive);
         }
+        // Ensure audio sources: try to use existing AudioSource for combatAudioSource,
+        // and create a dedicated child AudioSource for hit SFX if not assigned.
+        if (combatAudioSource == null)
+        {
+            combatAudioSource = GetComponent<AudioSource>();
+        }
+        if (hitAudioSource == null)
+        {
+            var go = new GameObject("HitAudioSource");
+            go.transform.SetParent(this.transform, false);
+            hitAudioSource = go.AddComponent<AudioSource>();
+            hitAudioSource.playOnAwake = false;
+            hitAudioSource.spatialBlend = 0f; // 2D
+        }
         Debug.Log($"PlayerCombatController Awake: equipedWeaponID={equipedWeaponID}, weaponParent={(weaponParent!=null)}, weaponModelsCount={(weaponModels!=null?weaponModels.Count:0)}");
+
+        // Initialize shield values
+        currentShieldHealth = maxShieldHealth;
+        lastShieldDamageTime = -999f;
     }
 
     private void Update()
     {
         HideWeapon();
         HitPauseUpdate();
+        HandleShieldInput();
+        HandleShieldRecharge();
+    }
+
+    private void LateUpdate()
+    {
+        // If we have an equipped shield model, ensure it is parented to the bone when possible
+        if (equippedShieldModel != null && shieldHolder != null)
+        {
+            // If the holder is active, prefer to parent the model under the holder so it moves with animation
+            if (shieldHolder.gameObject.activeInHierarchy)
+            {
+                if (equippedShieldModel.transform.parent != shieldHolder)
+                {
+                    // preserve world scale/pos before reparent
+                    Vector3 worldScale = equippedShieldModel.transform.lossyScale;
+                    equippedShieldModel.transform.SetParent(shieldHolder, true);
+                    equippedShieldModel.transform.localPosition = Vector3.zero;
+                    equippedShieldModel.transform.localRotation = Quaternion.identity;
+                    // adjust local scale to approximate previous world scale
+                    Vector3 parentLossy = shieldHolder.lossyScale;
+                    Vector3 newLocalScale = new Vector3(
+                        parentLossy.x != 0 ? worldScale.x / parentLossy.x : worldScale.x,
+                        parentLossy.y != 0 ? worldScale.y / parentLossy.y : worldScale.y,
+                        parentLossy.z != 0 ? worldScale.z / parentLossy.z : worldScale.z
+                    );
+                    equippedShieldModel.transform.localScale = newLocalScale;
+                }
+            }
+            else
+            {
+                // If holder isn't active, keep model under ShieldVisualParent and snap it to the holder world transform each frame
+                if (equippedShieldModel.transform.parent != shieldVisualParent)
+                {
+                    Vector3 worldScale = equippedShieldModel.transform.lossyScale;
+                    equippedShieldModel.transform.SetParent(shieldVisualParent, true);
+                    Vector3 parentLossy = shieldVisualParent.lossyScale;
+                    Vector3 newLocalScale = new Vector3(
+                        parentLossy.x != 0 ? worldScale.x / parentLossy.x : worldScale.x,
+                        parentLossy.y != 0 ? worldScale.y / parentLossy.y : worldScale.y,
+                        parentLossy.z != 0 ? worldScale.z / parentLossy.z : worldScale.z
+                    );
+                    equippedShieldModel.transform.localScale = newLocalScale;
+                }
+
+                if (shieldHolder != null)
+                {
+                    equippedShieldModel.transform.position = shieldHolder.position;
+                    equippedShieldModel.transform.rotation = shieldHolder.rotation;
+                }
+            }
+        }
+        // Also, if we instantiated a temporary shieldInstance under shieldHolder while shielding, ensure it follows (should already be parented)
+        // Apply manual shield pose blending when appropriate (fallback if Animator parameter/animation not driving the shield)
+        UpdateShieldPose();
+    }
+
+    private void UpdateShieldPose()
+    {
+        if (equippedShieldModel == null || !shieldPoseInitialized) return;
+
+        // Only apply manual pose when enabled and either forced or Animator parameter is missing
+        if (!enableManualShieldPose) return;
+        if (!forceManualShieldPose && hasIsShieldingParam) return;
+
+        Vector3 targetLocalPos = isShielding ? shieldBlockLocalPos : shieldRestLocalPos;
+        Quaternion targetLocalRot = isShielding ? shieldBlockLocalRot : shieldRestLocalRot;
+
+        // Smoothly blend local transform
+        equippedShieldModel.transform.localPosition = Vector3.Lerp(equippedShieldModel.transform.localPosition, targetLocalPos, Time.deltaTime * shieldPoseLerpSpeed);
+        equippedShieldModel.transform.localRotation = Quaternion.Slerp(equippedShieldModel.transform.localRotation, targetLocalRot, Time.deltaTime * shieldPoseLerpSpeed);
+    }
+
+    /// <summary>
+    /// Play shield block VFX/SFX at the shield location.
+    /// </summary>
+    public void PlayShieldBlockEffect(Vector3 worldPos, Vector3 worldNormal)
+    {
+        if (shieldBlockVfxPrefab != null)
+        {
+            var v = Instantiate(shieldBlockVfxPrefab, worldPos, Quaternion.LookRotation(worldNormal));
+            v.transform.localScale = Vector3.one * shieldVfxScale;
+            v.Play();
+            Destroy(v.gameObject, 5f);
+        }
+
+        if (combatAudioSource != null && shieldBlockSfx != null)
+        {
+            combatAudioSource.PlayOneShot(shieldBlockSfx, shieldBlockSfxVolume);
+        }
+    }
+
+    /// <summary>
+    /// Convenience callback when an incoming attack is blocked/parried by this player.
+    /// Computes an approximate spawn position (shield model or holder) and triggers effects.
+    /// </summary>
+    public void OnShieldBlocked()
+    {
+        Vector3 pos = transform.position + transform.forward * 0.5f;
+        Vector3 normal = transform.forward;
+        if (equippedShieldModel != null)
+        {
+            pos = equippedShieldModel.transform.position;
+            normal = equippedShieldModel.transform.forward;
+        }
+        else if (shieldHolder != null)
+        {
+            pos = shieldHolder.position;
+            normal = shieldHolder.forward;
+        }
+
+        PlayShieldBlockEffect(pos, normal);
     }
 
     private void OnEnable()
@@ -89,16 +285,23 @@ public class PlayerCombatController : MonoBehaviour
 
     // 当拾取物品时自动检查是否是武器，若是则切换并显示在手中
     private void OnPickUpItem(int itemID)
+{
+    Debug.Log("PlayerCombatController.OnPickUpItem: " + itemID);
+    if (DataManager.Instance == null || DataManager.Instance.itemConfig == null) return;
+    
+    Item item = DataManager.Instance.itemConfig.FindItemByID(itemID);
+    if (item == null) return;
+    
+    if (item.itemType == ItemType.Weapon)
     {
-        Debug.Log("PlayerCombatController.OnPickUpItem: " + itemID);
-        if (DataManager.Instance == null || DataManager.Instance.itemConfig == null) return;
-        Item item = DataManager.Instance.itemConfig.FindItemByID(itemID);
-        if (item != null && item.itemType == ItemType.Weapon)
-        {
-            SwitchWeapon(itemID);
-            SetWeaponVisible(true);
-        }
+        SwitchWeapon(itemID);
+        SetWeaponVisible(true);
     }
+    else if (item.itemType == ItemType.Armor)
+    {
+        EquipShield(itemID);
+    }
+}
 
     private void OnDestroy()
     {
@@ -136,6 +339,289 @@ public class PlayerCombatController : MonoBehaviour
             SetWeaponVisible(true);
         }
     }
+
+    /// <summary>
+/// Switch armor/shield model (mirror SwitchWeapon)
+/// </summary>
+public void SwitchArmor(int id)
+{
+    equipedArmorID = id;
+    
+    if (armorModels != null)
+    {
+        foreach (PlayerEquipmentModel model in armorModels)
+        {
+            if (model == null || model.equipmentModel == null) continue;
+            bool shouldActive = (model.equipmentID == id);
+            model.equipmentModel.SetActive(shouldActive);
+            
+            if (shouldActive)
+            {
+                SetLayerRecursively(model.equipmentModel, 2); // IgnoreRaycast
+                Debug.Log($"SwitchArmor: activated '{model.equipmentModel.name}'");
+            }
+        }
+    }
+    
+    if (armorParent != null)
+        armorParent.SetActive(id > 0);
+    
+    currentShieldHealth = maxShieldHealth;
+}
+
+/// <summary>
+/// Handle shield input (dipanggil dari Update atau script lain)
+/// </summary>
+public void HandleShieldInput()
+{
+    if (equipedArmorID <= 0) return; // Ga ada shield
+    
+    if (Input.GetKey(KeyCode.Mouse1) && currentShieldHealth > 0)
+    {
+        if (!isShielding)
+            ActivateShield();
+    }
+    else
+    {
+        if (isShielding)
+            DeactivateShield();
+    }
+}
+
+private void ActivateShield()
+{
+    isShielding = true;
+    if (hasIsShieldingParam) animator.SetBool("isShielding", true);
+    Debug.Log($"ActivateShield: hasIsShieldingParam={hasIsShieldingParam}, animatorPresent={(animator!=null)}, equippedShield={(equippedShieldModel!=null?equippedShieldModel.name:"<none>")}");
+    // Visuals are handled by EquipShield (shield model remains in hand like a sword).
+    // Here we only toggle the animator parameter (and could enable colliders/effects if needed).
+}
+
+private void DeactivateShield()
+{
+    isShielding = false;
+    if (hasIsShieldingParam) animator.SetBool("isShielding", false);
+    Debug.Log($"DeactivateShield: hasIsShieldingParam={hasIsShieldingParam}, animatorPresent={(animator!=null)}, equippedShield={(equippedShieldModel!=null?equippedShieldModel.name:"<none>")}");
+    // Do not hide or destroy the equipped shield model here; it should remain in the character's hand until unequipped.
+}
+
+/// <summary>
+/// Called when shield takes damage
+/// </summary>
+public void TakeShieldDamage(float damage)
+{
+    if (!isShielding) return;
+    
+    currentShieldHealth -= damage;
+    lastShieldDamageTime = Time.time;
+    
+    if (currentShieldHealth <= 0)
+    {
+        currentShieldHealth = 0;
+        DeactivateShield();
+        Debug.Log("Shield Broken!");
+    }
+}
+
+/// <summary>
+/// Shield recharge over time
+/// </summary>
+public void HandleShieldRecharge()
+{
+    if (!isShielding && currentShieldHealth < maxShieldHealth && equipedArmorID > 0)
+    {
+        if (Time.time - lastShieldDamageTime >= shieldRechargeDelay)
+        {
+            currentShieldHealth += shieldRechargeRate * Time.deltaTime;
+            currentShieldHealth = Mathf.Clamp(currentShieldHealth, 0, maxShieldHealth);
+        }
+    }
+}
+
+public float GetShieldPercentage()
+{
+    if (maxShieldHealth <= 0) return 0;
+    return currentShieldHealth / maxShieldHealth;
+}
+
+/// <summary>
+/// Equip shield dari inventory (dipanggil lewat pickup atau manual)
+/// </summary>
+public void EquipShield(int shieldID)
+{
+    // Apply armor/shield visuals and move/instantiate model to shieldHolder if available
+    SwitchArmor(shieldID);
+
+    bool foundStaticModel = false;
+    if (shieldHolder != null && armorModels != null)
+    {
+        foreach (PlayerEquipmentModel model in armorModels)
+        {
+            if (model == null || model.equipmentModel == null) continue;
+            if (model.equipmentID == shieldID)
+            {
+                // Diagnostics: before reparent
+                Debug.Log($"EquipShield: preparing to move '{model.equipmentModel.name}' -> shieldHolder. model.activeSelf={model.equipmentModel.activeSelf}, model.activeInHierarchy={model.equipmentModel.activeInHierarchy}, model.localScale={model.equipmentModel.transform.localScale}, model.lossyScale={model.equipmentModel.transform.lossyScale}");
+                if (shieldHolder != null)
+                    Debug.Log($"shieldHolder activeInHierarchy={shieldHolder.gameObject.activeInHierarchy}, shieldHolder lossyScale={shieldHolder.lossyScale}");
+
+                // preserve the model's current world scale, then compute a local scale appropriate for the new parent
+                Vector3 desiredWorldScale = model.equipmentModel.transform.lossyScale;
+
+                // If the actual bone is active, parent there; otherwise parent to a visual parent and snap to bone world transform
+                if (shieldHolder != null && shieldHolder.gameObject.activeInHierarchy)
+                {
+                    model.equipmentModel.transform.SetParent(shieldHolder, false);
+                    model.equipmentModel.transform.localPosition = Vector3.zero;
+                    model.equipmentModel.transform.localRotation = Quaternion.identity;
+                }
+                else
+                {
+                    model.equipmentModel.transform.SetParent(shieldVisualParent, true);
+                    // snap to bone world transform so it appears correctly
+                    if (shieldHolder != null)
+                    {
+                        model.equipmentModel.transform.position = shieldHolder.position;
+                        model.equipmentModel.transform.rotation = shieldHolder.rotation;
+                    }
+                }
+
+                // Adjust localScale so the world scale approximates the original
+                var parent = model.equipmentModel.transform.parent;
+                Vector3 parentLossy = parent != null ? parent.lossyScale : Vector3.one;
+                Vector3 newLocalScale = new Vector3(
+                    parentLossy.x != 0 ? desiredWorldScale.x / parentLossy.x : desiredWorldScale.x,
+                    parentLossy.y != 0 ? desiredWorldScale.y / parentLossy.y : desiredWorldScale.y,
+                    parentLossy.z != 0 ? desiredWorldScale.z / parentLossy.z : desiredWorldScale.z
+                );
+                model.equipmentModel.transform.localScale = newLocalScale;
+
+                model.equipmentModel.SetActive(true);
+                EnableRenderersRecursively(model.equipmentModel, true);
+                SetLayerRecursively(model.equipmentModel, 2);
+                // Ensure the equipped shield model persists across scene loads (call DontDestroyOnLoad on root)
+                try
+                {
+                    var rootGo = model.equipmentModel.transform.root != null ? model.equipmentModel.transform.root.gameObject : model.equipmentModel;
+                    Object.DontDestroyOnLoad(rootGo);
+                }
+                catch { }
+                Debug.Log($"EquipShield: moved static shield model '{model.equipmentModel.name}' to shieldHolder");
+                LogGameObjectInfo(model.equipmentModel);
+                Debug.Log($"EquipShield diagnostics: active={model.equipmentModel.activeInHierarchy}, layer={model.equipmentModel.layer}, localPos={model.equipmentModel.transform.localPosition}, lossyScale={model.equipmentModel.transform.lossyScale}");
+                if (Camera.main != null)
+                    Debug.Log($"MainCamera cullingMask for layer 2 (IgnoreRaycast) = {((Camera.main.cullingMask & (1<<2))!=0)} (mask={Camera.main.cullingMask})");
+                // remember reference so Activate/Deactivate can toggle visibility instead of instantiating duplicates
+                equippedShieldModel = model.equipmentModel;
+                // inform PlayerBlock (if present) that a shield is equipped so blocking logic can use it
+                var pb_static = GetComponent<PlayerBlock>();
+                if (pb_static != null) pb_static.SetEquippedShield(equippedShieldModel);
+                // initialize manual pose data (account for parent lossy scale so offsets remain sane)
+                var poseParent = equippedShieldModel.transform.parent;
+                Vector3 parentLossyForPose = poseParent != null ? poseParent.lossyScale : Vector3.one;
+                shieldRestLocalPos = equippedShieldModel.transform.localPosition;
+                shieldRestLocalRot = equippedShieldModel.transform.localRotation;
+                Vector3 scaledOffset = new Vector3(
+                    parentLossyForPose.x != 0 ? shieldBlockLocalPosOffset.x / parentLossyForPose.x : shieldBlockLocalPosOffset.x,
+                    parentLossyForPose.y != 0 ? shieldBlockLocalPosOffset.y / parentLossyForPose.y : shieldBlockLocalPosOffset.y,
+                    parentLossyForPose.z != 0 ? shieldBlockLocalPosOffset.z / parentLossyForPose.z : shieldBlockLocalPosOffset.z
+                );
+                shieldBlockLocalPos = shieldRestLocalPos + scaledOffset;
+                shieldBlockLocalRot = shieldRestLocalRot * Quaternion.Euler(shieldBlockLocalRotOffset);
+                shieldPoseInitialized = true;
+                foundStaticModel = true;
+                break;
+            }
+        }
+    }
+
+    if (!foundStaticModel)
+    {
+        // try instantiate prefab from ItemConfig similar to weapon handling
+        try
+        {
+            if (DataManager.Instance != null && DataManager.Instance.itemConfig != null)
+            {
+                Item it = DataManager.Instance.itemConfig.FindItemByID(shieldID);
+                    if (it != null && it.itemPrefab != null && shieldHolder != null)
+                {
+                    GameObject runtimeShield = null;
+                    // desired world scale based on prefab
+                    Vector3 desiredWorldScale = it.itemPrefab.transform.lossyScale;
+
+                    if (shieldHolder.gameObject.activeInHierarchy)
+                    {
+                        runtimeShield = Instantiate(it.itemPrefab, shieldHolder);
+                        runtimeShield.transform.localPosition = it.itemPrefab.transform.localPosition;
+                        runtimeShield.transform.localRotation = it.itemPrefab.transform.localRotation;
+                        // adjust local scale to preserve desired world scale
+                        var parentLossy = shieldHolder.lossyScale;
+                        runtimeShield.transform.localScale = new Vector3(
+                            parentLossy.x != 0 ? desiredWorldScale.x / parentLossy.x : desiredWorldScale.x,
+                            parentLossy.y != 0 ? desiredWorldScale.y / parentLossy.y : desiredWorldScale.y,
+                            parentLossy.z != 0 ? desiredWorldScale.z / parentLossy.z : desiredWorldScale.z
+                        );
+                    }
+                    else
+                    {
+                        runtimeShield = Instantiate(it.itemPrefab, shieldVisualParent);
+                        // snap to bone world transform if holder exists
+                        if (shieldHolder != null)
+                        {
+                            runtimeShield.transform.position = shieldHolder.position;
+                            runtimeShield.transform.rotation = shieldHolder.rotation;
+                        }
+                        var parentLossy = shieldVisualParent.lossyScale;
+                        runtimeShield.transform.localScale = new Vector3(
+                            parentLossy.x != 0 ? desiredWorldScale.x / parentLossy.x : desiredWorldScale.x,
+                            parentLossy.y != 0 ? desiredWorldScale.y / parentLossy.y : desiredWorldScale.y,
+                            parentLossy.z != 0 ? desiredWorldScale.z / parentLossy.z : desiredWorldScale.z
+                        );
+                    }
+                    SetLayerRecursively(runtimeShield, 2);
+                    EnableRenderersRecursively(runtimeShield, true);
+                    // make runtime-instantiated shield survive scene switches (mark the root GameObject)
+                    try
+                    {
+                        var rootRs = runtimeShield.transform.root != null ? runtimeShield.transform.root.gameObject : runtimeShield;
+                        Object.DontDestroyOnLoad(rootRs);
+                    }
+                    catch { }
+                    Debug.Log($"EquipShield: instantiated runtime shield '{runtimeShield.name}' under {(runtimeShield.transform.parent==shieldHolder?"shieldHolder":"shieldVisualParent")}");
+                    LogGameObjectInfo(runtimeShield);
+                    if (Camera.main != null)
+                        Debug.Log($"MainCamera cullingMask for layer 2 (IgnoreRaycast) = {((Camera.main.cullingMask & (1<<2))!=0)} (mask={Camera.main.cullingMask})");
+                    equippedShieldModel = runtimeShield;
+                    // inform PlayerBlock (if present) that a shield is equipped so blocking logic can use it
+                    var pb_runtime = GetComponent<PlayerBlock>();
+                    if (pb_runtime != null) pb_runtime.SetEquippedShield(equippedShieldModel);
+                    // initialize manual pose data for runtime instance (account for parent lossy scale)
+                    var rposeParent = equippedShieldModel.transform.parent;
+                    Vector3 rparentLossyForPose = rposeParent != null ? rposeParent.lossyScale : Vector3.one;
+                    shieldRestLocalPos = equippedShieldModel.transform.localPosition;
+                    shieldRestLocalRot = equippedShieldModel.transform.localRotation;
+                    Vector3 rscaledOffset = new Vector3(
+                        rparentLossyForPose.x != 0 ? shieldBlockLocalPosOffset.x / rparentLossyForPose.x : shieldBlockLocalPosOffset.x,
+                        rparentLossyForPose.y != 0 ? shieldBlockLocalPosOffset.y / rparentLossyForPose.y : shieldBlockLocalPosOffset.y,
+                        rparentLossyForPose.z != 0 ? shieldBlockLocalPosOffset.z / rparentLossyForPose.z : shieldBlockLocalPosOffset.z
+                    );
+                    shieldBlockLocalPos = shieldRestLocalPos + rscaledOffset;
+                    shieldBlockLocalRot = shieldRestLocalRot * Quaternion.Euler(shieldBlockLocalRotOffset);
+                    shieldPoseInitialized = true;
+                }
+            }
+        }
+        catch { }
+    }
+}
+
+/// <summary>
+/// Cek apakah shield bisa dipakai
+/// </summary>
+public bool IsShieldActive()
+{
+    return equipedArmorID > 0 && currentShieldHealth > 0;
+}
 
     /// <summary>
     /// 初始化战斗控制
@@ -244,6 +730,10 @@ public class PlayerCombatController : MonoBehaviour
             }
         }
 
+        
+
+        
+
         // destroy previous runtime instance if any
         if (runtimeWeaponInstance != null)
         {
@@ -269,6 +759,13 @@ public class PlayerCombatController : MonoBehaviour
                         runtimeWeaponInstance.transform.localScale = it.itemPrefab.transform.localScale;
                         // Ensure runtime-instantiated prefab doesn't block camera raycasts
                         SetLayerRecursively(runtimeWeaponInstance, 2);
+                        // ensure runtime instance persists across scene loads (mark the root GameObject)
+                        try
+                        {
+                            var rootW = runtimeWeaponInstance.transform.root != null ? runtimeWeaponInstance.transform.root.gameObject : runtimeWeaponInstance;
+                            Object.DontDestroyOnLoad(rootW);
+                        }
+                        catch { }
                         Debug.Log($"SwitchWeapon: instantiated runtime weapon '{runtimeWeaponInstance.name}' under '{weaponParent.name}'");
                         LogGameObjectInfo(runtimeWeaponInstance);
                         EnableRenderersRecursively(runtimeWeaponInstance, true);
@@ -304,6 +801,8 @@ public class PlayerCombatController : MonoBehaviour
             }
     }
 
+    
+
     private void FindWeaponParentIfNull()
     {
         // Try common child names
@@ -325,6 +824,91 @@ public class PlayerCombatController : MonoBehaviour
         }
 
         Debug.LogWarning("PlayerCombatController: weaponParent is null and couldn't be found automatically.");
+    }
+
+    private void FindShieldHolderIfNull()
+    {
+        if (shieldHolder != null) return;
+        // 1) If Animator is present and humanoid, prefer the built-in bone transforms
+        if (animator != null)
+        {
+            try
+            {
+                if (animator.isHuman)
+                {
+                    HumanBodyBones[] candidates = new HumanBodyBones[] {
+                        HumanBodyBones.LeftHand,
+                        HumanBodyBones.LeftLowerArm,
+                        HumanBodyBones.LeftUpperArm,
+                        HumanBodyBones.LeftShoulder
+                    };
+                    foreach (var hb in candidates)
+                    {
+                        var b = animator.GetBoneTransform(hb);
+                        if (b != null)
+                        {
+                            shieldHolder = b;
+                            Debug.Log($"PlayerCombatController: found shieldHolder via Animator.GetBoneTransform -> {hb} ({b.name})");
+                            return;
+                        }
+                    }
+                }
+
+                // 2) If not humanoid or not found, inspect SkinnedMeshRenderer bones for suitable names
+                var skinned = GetComponentsInChildren<SkinnedMeshRenderer>(true);
+                foreach (var smr in skinned)
+                {
+                    if (smr == null || smr.bones == null) continue;
+                    foreach (var b in smr.bones)
+                    {
+                        if (b == null) continue;
+                        string bn = b.name.ToLower();
+                        if ((bn.Contains("hand") && bn.Contains("left")) || bn.EndsWith(".l") || bn.EndsWith("_l") || bn.Contains("hand_l") || bn.Contains("l_hand") || bn.Contains("clavicle_l") || bn.Contains("shoulder_l"))
+                        {
+                            shieldHolder = b;
+                            Debug.Log($"PlayerCombatController: found shieldHolder via SkinnedMeshRenderer bones -> {b.name}");
+                            return;
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // 3) Try common child names as a fallback
+        string[] names = { "ShieldHolder", "shieldHolder", "Shield_Holder", "LeftHand", "leftHand", "hand_L", "Hand.L", "Hand_L", "LeftHandTarget" };
+        foreach (var n in names)
+        {
+            var t = transform.Find(n);
+            if (t != null)
+            {
+                shieldHolder = t;
+                Debug.Log($"PlayerCombatController: found shieldHolder by name '{n}'");
+                return;
+            }
+        }
+
+        // 4) Fallback: search children for likely left-hand bone names by simple name matching
+        foreach (Transform t in transform.GetComponentsInChildren<Transform>(true))
+        {
+            string lower = t.name.ToLower();
+            if ((lower.Contains("hand") && lower.Contains("left")) || lower.EndsWith(".l") || lower.EndsWith("_l") || lower.Contains("hand_l") || lower.Contains("l_hand") || lower.Contains("clavicle_l"))
+            {
+                shieldHolder = t;
+                Debug.Log($"PlayerCombatController: auto-found shieldHolder '{t.name}' (name match)");
+                return;
+            }
+        }
+
+        Debug.LogWarning("PlayerCombatController: shieldHolder is null and couldn't be found automatically. Assign in Inspector.");
+    }
+
+    private bool HasAnimatorParameter(string paramName)
+    {
+        if (animator == null) return false;
+        foreach (var p in animator.parameters)
+            if (p.name == paramName) return true;
+        return false;
     }
 
     private void SetLayerRecursively(GameObject go, int layer)
@@ -374,16 +958,7 @@ public class PlayerCombatController : MonoBehaviour
         foreach (var s in skinned) s.enabled = enable;
     }
 
-    /// <summary>
-    /// 切换防具模型, 在更换防具时被调用
-    /// </summary>
-    public void SwitchArmor(int id)
-    {
-        foreach (PlayerEquipmentModel model in armorModels)
-        {
-            model.equipmentModel.SetActive(model.equipmentID == id);
-        }
-    }
+    // (SwitchArmor is implemented earlier with full logic; duplicate removed.)
 
     /// <summary>
     /// 在不需要显示武器时隐藏武器模型
@@ -456,6 +1031,7 @@ public class PlayerCombatController : MonoBehaviour
     }
 }
 
+
 /// <summary>
 /// 用于装备ID与玩家手持装备模型对应
 /// </summary>
@@ -465,3 +1041,4 @@ public class PlayerEquipmentModel
     public int equipmentID;
     public GameObject equipmentModel;
 }
+

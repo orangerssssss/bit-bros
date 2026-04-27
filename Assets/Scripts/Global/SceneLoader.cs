@@ -132,7 +132,9 @@ public class SceneLoader : MonoBehaviour
             // Ensure weapon visible after move
             if (PlayerInputManager.Instance.combatController != null)
             {
-                PlayerInputManager.Instance.combatController.SetWeaponVisible(true);
+                    PlayerInputManager.Instance.combatController.SetWeaponVisible(true);
+                    // re-enable after a short delay in case triggers (NonCombatField) just fired
+                    StartCoroutine(ReenableWeaponsDelayed(0.2f));
             }
 
             // Re-init view controller and rewire Cinemachine to follow player
@@ -155,11 +157,16 @@ public class SceneLoader : MonoBehaviour
             if (PlayerInputManager.Instance != null && PlayerInputManager.Instance.combatController != null)
             {
                 PlayerInputManager.Instance.combatController.SetWeaponVisible(true);
+                StartCoroutine(ReenableWeaponsDelayed(0.2f));
             }
             else
             {
                 var pcCombat = pc.GetComponentInChildren<PlayerCombatController>();
-                if (pcCombat != null) pcCombat.SetWeaponVisible(true);
+                if (pcCombat != null)
+                {
+                    pcCombat.SetWeaponVisible(true);
+                    StartCoroutine(ReenableWeaponsDelayed(0.2f));
+                }
             }
 
             // Re-init view controller and rewire Cinemachine to follow player
@@ -179,10 +186,12 @@ public class SceneLoader : MonoBehaviour
             if (pCombat != null)
             {
                 pCombat.SetWeaponVisible(true);
+                StartCoroutine(ReenableWeaponsDelayed(0.2f));
             }
             else if (PlayerInputManager.Instance != null && PlayerInputManager.Instance.combatController != null)
             {
                 PlayerInputManager.Instance.combatController.SetWeaponVisible(true);
+                StartCoroutine(ReenableWeaponsDelayed(0.2f));
             }
 
             // Re-init view controller and rewire Cinemachine to follow player
@@ -191,6 +200,23 @@ public class SceneLoader : MonoBehaviour
         }
 
         Debug.Log("SceneLoader: no player object found to move to spawn");
+    }
+
+    private IEnumerator ReenableWeaponsDelayed(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        PlayerCombatController pc = null;
+        if (PlayerInputManager.Instance != null) pc = PlayerInputManager.Instance.combatController;
+        if (pc == null)
+        {
+            var player = GameObject.Find("Player") ?? GameObject.Find("PlayerControl");
+            if (player != null) pc = player.GetComponentInChildren<PlayerCombatController>();
+        }
+        if (pc != null)
+        {
+            pc.SetWeaponVisible(true);
+            Debug.Log("SceneLoader: Reenabled weapon visibility after delay");
+        }
     }
 
     private void TryInitializeCameraForPlayer(ViewController view, GameObject pc, GameObject player)

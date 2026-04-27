@@ -155,6 +155,8 @@ public class FightAISoldier : FightAI
 
     private void Update()
     {
+        if (isDead) return;
+
         // Guard against missing components or agents not placed on NavMesh
         if (agent == null || animator == null || fightAttributes == null)
         {
@@ -518,6 +520,34 @@ public class FightAISoldier : FightAI
             animator.SetBool("Alarm", false);
             animator.SetFloat("MoveSpeed", 0f);
         }
+
+        // Restore Rigidbody to kinematic state when resetting AI (for pooled enemies)
+        try
+        {
+            if (rb != null)
+            {
+                rb.velocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+                rb.isKinematic = true;
+                rb.useGravity = false;
+            }
+        }
+        catch { }
+
+        // reset dead flag and re-enable colliders/character controller for reuse
+        isDead = false;
+        try
+        {
+            if (enemyCollider != null) enemyCollider.enabled = true;
+            if (charController != null) charController.enabled = true;
+
+            var cols = GetComponentsInChildren<Collider>(true);
+            foreach (var c in cols)
+            {
+                c.enabled = true;
+            }
+        }
+        catch { }
     }
 
     /// <summary>
