@@ -54,13 +54,7 @@ public class DialogDisplayer : MonoBehaviour
     }
     private void Start()
     {
-        dialogUIObject = GameUIManager.Instance.dialog;
-        dialogNextButton = GameUIManager.Instance.dialogNextButton;
-        optionLabel = GameUIManager.Instance.optionLabel;
-        nameText = GameUIManager.Instance.dialogNameTextLabel;
-        contentText = GameUIManager.Instance.dialogTextLabel;
-        continueTip = GameUIManager.Instance.dialogContinueTip;
-        dialogSkipButton = GameUIManager.Instance.dialogSkipButton;
+        RefreshUIReferences();
 
         if (dialogNextButton != null)
             dialogNextButton.onClick.AddListener(() => DialogNext());
@@ -118,10 +112,7 @@ public class DialogDisplayer : MonoBehaviour
         isDialog = true;
 
         // 确保对话UI组件已准备好，防止在UI未初始化时关闭玩家输入导致无法交互
-        if (dialogUIObject == null && GameUIManager.Instance != null)
-            dialogUIObject = GameUIManager.Instance.dialog;
-        if (dialogNextButton == null && GameUIManager.Instance != null)
-            dialogNextButton = GameUIManager.Instance.dialogNextButton;
+        RefreshUIReferences();
 
         // 如果dialogUIObject存在但dialogNextButton为空，尝试在dialogUIObject里查找第一个Button作为回退
         int buttonsFound = 0;
@@ -185,7 +176,17 @@ public class DialogDisplayer : MonoBehaviour
     /// </summary>
     public bool DialogNext()
     {
-        if (dialogConfig == null) ExitDialog();
+        if (dialogConfig == null)
+        {
+            ExitDialog();
+            return false;
+        }
+
+        if (!EnsureDialogUIReady())
+        {
+            ExitDialog();
+            return false;
+        }
 
         continueTip.SetActive(false);
 
@@ -266,7 +267,7 @@ public class DialogDisplayer : MonoBehaviour
 
             // 关闭对话框
             if (dialogConfig) CloseOption();
-            dialogUIObject.SetActive(false);
+            if (dialogUIObject != null) dialogUIObject.SetActive(false);
 
             // 打开玩家控制
             PlayerInputManager.Instance.OpenAllInput();
@@ -278,6 +279,8 @@ public class DialogDisplayer : MonoBehaviour
     /// </summary>
     private IEnumerator ShowText(int index)
     {
+        if (!EnsureDialogUIReady()) yield break;
+
         // 逐字显示
         isShowText = true;
         nameText.text = dialogConfig.contents[index].name;
@@ -306,6 +309,8 @@ public class DialogDisplayer : MonoBehaviour
     /// </summary>
     private void ShowOption()
     {
+        if (!EnsureDialogUIReady()) return;
+
         dialogSkipButton.gameObject.SetActive(false);
 
         if (dialogConfig.nextDialog.Count > 0)
@@ -356,6 +361,8 @@ public class DialogDisplayer : MonoBehaviour
     /// </summary>
     private void CloseOption()
     {
+        if (!EnsureDialogUIReady()) return;
+
         dialogSkipButton.gameObject.SetActive(true);
 
         for (int i = 0; i < dialogConfig.nextDialog.Count; i++)
@@ -363,5 +370,39 @@ public class DialogDisplayer : MonoBehaviour
             optionLabel.GetChild(i).gameObject.SetActive(false);
         }
     }
-}
 
+    private void RefreshUIReferences()
+    {
+        if (GameUIManager.Instance == null) return;
+
+        dialogUIObject = GameUIManager.Instance.dialog;
+        dialogNextButton = GameUIManager.Instance.dialogNextButton;
+        optionLabel = GameUIManager.Instance.optionLabel;
+        nameText = GameUIManager.Instance.dialogNameTextLabel;
+        contentText = GameUIManager.Instance.dialogTextLabel;
+        continueTip = GameUIManager.Instance.dialogContinueTip;
+        dialogSkipButton = GameUIManager.Instance.dialogSkipButton;
+    }
+
+    private bool EnsureDialogUIReady()
+    {
+        if (dialogUIObject == null || continueTip == null || contentText == null || nameText == null || optionLabel == null || dialogSkipButton == null)
+        {
+            RefreshUIReferences();
+        }
+
+        bool ready = dialogUIObject != null
+            && continueTip != null
+            && contentText != null
+            && nameText != null
+            && optionLabel != null
+            && dialogSkipButton != null;
+
+        if (!ready)
+        {
+            Debug.LogWarning("DialogDisplayer: dialog UI references are missing after refresh.");
+        }
+
+        return ready;
+    }
+}

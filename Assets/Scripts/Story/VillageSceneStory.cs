@@ -27,38 +27,41 @@ public class VillageSceneStory : MonoBehaviour
 
     [Header("对话文件")]
     public DialogConfig dialog_3_0;       // 陌生士兵 - 介绍背景信息
-    public DialogConfig dialog_3_1;       // 格雷斯 - 最后的对话
+    public DialogConfig dialog_3_1;       // 加雷斯 - 最后的对话
     public DialogConfig dialog_3_board;       //木板 - 交互
     [Header("对话物")]
     public DialogObject strangerSoldierNPC;     // 陌生士兵
-    public DialogObject garethNPC;               // 格雷斯
+    public DialogObject garethNPC;               // 加雷斯
     [Header("战斗角色")]
     public List<FightAttributes> villageEnemies;    // 村庄中的敌人列表
-    public FightAttributes garethLeader;             // 格雷斯
+    public FightAttributes garethLeader;             // 加雷斯
     public DialogObject boardDialogObject;       // 板子对话物
 
     [Header("位置")]
     public Transform villageEntrancePosition;   // 村庄入口位置
     public Transform villageExitPosition;       // 村庄出口位置
     public Transform strangerSoldierPosition;   // 陌生士兵位置
-    public Transform garethPosition;             // 格雷斯位置
+    public Transform garethPosition;             // 加雷斯位置
 
     [Header("物体")]
     public GameObject strangerSoldier;          // 陌生士兵GameObject
-    public GameObject gareth;                    // 格雷斯GameObject
+    public GameObject gareth;                    // 加雷斯GameObject
     public GameObject villageEnemySpawners;     // 敌人生成点
     public GameObject villageTriggerPoint;      // 村庄入口触发点
 
     [Header("标识")]
     public Transform mark_strangerSoldier;      // 陌生士兵标记
     public Transform mark_villageEntrance;      // 村庄入口标记
-    public Transform mark_gareth;                // 格雷斯标记
+    public Transform mark_gareth;                // 加雷斯标记
 
     private StoryListener storyListener = new StoryListener();
     public bool autoPickupStoryDialog = false;
 
     [HideInInspector] public int villageEnemyDeathCount;    // 需要击杀的敌人数量
     [HideInInspector] public int villageEnemyKilledCount;   // 已击杀的敌人数量
+    private Coroutine villageEntranceCheckCoroutine;
+    private Coroutine villageExitCheckCoroutine;
+    private bool villageBattleBuffApplied = false;
 
     private void Start()
     {
@@ -115,7 +118,7 @@ public class VillageSceneStory : MonoBehaviour
                 break;
 
             case 1: // 任务2：进入村庄，到达村庄门口trigger
-                GameUIManager.Instance.mainTaskTip.UpdateTask("进入村庄", "前往村庄，帮助格雷斯");
+                GameUIManager.Instance.mainTaskTip.UpdateTask("进入村庄", "前往村庄，帮助加雷斯");
 
                 // 激活村庄入口触发点
                 if (villageTriggerPoint != null)
@@ -124,14 +127,17 @@ public class VillageSceneStory : MonoBehaviour
                 }
 
                 // 设置目标标记
-                if (mark_villageEntrance != null)
+                Transform villageEntranceTarget = ResolveVillageEntranceTarget();
+                if (villageEntranceTarget != null)
                 {
-                    GameUIManager.Instance.destinationMark.SetTarget(mark_villageEntrance);
+                    GameUIManager.Instance.destinationMark.SetTarget(villageEntranceTarget);
                 }
+
+                StartVillageEntranceCheck();
                 break;
 
             case 2: // 任务3：斩杀一切阻碍，为了拯救世界
-                GameUIManager.Instance.mainTaskTip.UpdateTask("斩杀一切", "消灭村庄中的所有被黑魔法控制的村民，让他们安息。");
+                GameUIManager.Instance.mainTaskTip.UpdateTask("拔除一切", "消灭村庄中被黑魔法控制的村民，让他们安息。");
 
                 // 激活敌人生成点
                 if (villageEnemySpawners != null)
@@ -139,11 +145,18 @@ public class VillageSceneStory : MonoBehaviour
                     villageEnemySpawners.SetActive(true);
                 }
 
-                // 在此处可以根据需要生成敌人或触发战斗逻辑
+                Transform villageExitTarget = ResolveVillageExitTarget();
+                if (villageExitTarget != null)
+                {
+                    GameUIManager.Instance.destinationMark.SetTarget(villageExitTarget);
+                }
+
+                ApplyVillageBattleBuff();
+                StartVillageExitCheck();
                 break;
 
-            case 3: // 任务4：和即将死亡的格雷斯聊聊
-                GameUIManager.Instance.mainTaskTip.UpdateTask("和格雷斯聊聊", "去和伤痕累累的格雷斯交谈。");
+            case 3: // 任务4：和即将死亡的加雷斯聊聊
+                GameUIManager.Instance.mainTaskTip.UpdateTask("和加雷斯聊聊", "去和奄奄一息的加雷斯交谈。");
 
                 // 激活格雷斯
                 if (gareth != null)
@@ -151,7 +164,7 @@ public class VillageSceneStory : MonoBehaviour
                     gareth.SetActive(true);
                 }
 
-                // 添加格雷斯的对话
+                // 添加加雷斯的对话
                 if (garethNPC != null && dialog_3_1 != null)
                 {
                     garethNPC.AddSpecialDialog(dialog_3_1);
@@ -163,7 +176,7 @@ public class VillageSceneStory : MonoBehaviour
                 break;
 
             case 4: // 任务5：继续前进，我只要我需要的东西
-                GameUIManager.Instance.mainTaskTip.UpdateTask("继续前进", "离开村庄，踏上新的冒险。");
+                GameUIManager.Instance.mainTaskTip.UpdateTask("继续前进", "真相是什么，继续冒险。");
 
                 // 设置出口标记
                 if (mark_villageEntrance != null)
@@ -283,12 +296,12 @@ public class VillageSceneStory : MonoBehaviour
     public void OnEnemyKilled()
     {
         villageEnemyKilledCount++;
-        Debug.Log($"VillageSceneStory: Enemy killed. Progress: {villageEnemyKilledCount}/{villageEnemyDeathCount}");
+        Debug.Log($"VillageSceneStory: Enemy killed. Progress: {villageEnemyKilledCount}/5 (requirement)");
 
-        // 如果所有敌人都被击杀，推进故事进度
-        if (villageEnemyKilledCount >= villageEnemyDeathCount)
+        // 如果击杀了5个或以上敌人，推进故事进度
+        if (villageEnemyKilledCount >= 5)
         {
-            Debug.Log("VillageSceneStory: All enemies defeated! Moving to next stage.");
+            Debug.Log("VillageSceneStory: Enough enemies defeated! Moving to next stage.");
             DriveProcess();
         }
     }
@@ -298,7 +311,13 @@ public class VillageSceneStory : MonoBehaviour
     /// </summary>
     public void OnVillageEntranceReached()
     {
-        if (storyProcess != 1) return;
+        Debug.Log($"VillageSceneStory: OnVillageEntranceReached called, storyProcess={storyProcess}");
+        
+        if (storyProcess != 1)
+        {
+            Debug.LogWarning($"VillageSceneStory: Story is at process {storyProcess}, expected 1. Ignoring trigger.");
+            return;
+        }
 
         Debug.Log("VillageSceneStory: 到达村庄入口，任务2完成，推进到任务3。");
         if (villageTriggerPoint != null)
@@ -307,5 +326,202 @@ public class VillageSceneStory : MonoBehaviour
         }
 
         DriveProcess();
+    }
+
+    public void OnVillageExitReached()
+    {
+        Debug.Log($"VillageSceneStory: OnVillageExitReached called, storyProcess={storyProcess}");
+
+        if (storyProcess != 2)
+        {
+            Debug.LogWarning($"VillageSceneStory: Story is at process {storyProcess}, expected 2. Ignoring exit trigger.");
+            return;
+        }
+
+        Debug.Log("VillageSceneStory: 到达村庄出口，推进到 Gareth 对话任务。");
+        DriveProcess();
+    }
+
+    private Transform ResolveVillageEntranceTarget()
+    {
+        Transform player = null;
+        GameObject playerObject = GameObject.FindGameObjectWithTag("Player");
+        if (playerObject != null) player = playerObject.transform;
+
+        Transform[] candidates = new Transform[]
+        {
+            mark_villageEntrance,
+            villageEntrancePosition,
+            villageTriggerPoint != null ? villageTriggerPoint.transform : null
+        };
+
+        foreach (Transform candidate in candidates)
+        {
+            if (candidate == null) continue;
+
+            if (player != null && (candidate == player || candidate.IsChildOf(player)))
+            {
+                Debug.LogWarning($"VillageSceneStory: village entrance target '{candidate.name}' points to player and will be ignored.");
+                continue;
+            }
+
+            return candidate;
+        }
+
+        Debug.LogWarning("VillageSceneStory: no valid village entrance target found.");
+        return null;
+    }
+
+    private void StartVillageEntranceCheck()
+    {
+        if (villageEntranceCheckCoroutine != null)
+        {
+            StopCoroutine(villageEntranceCheckCoroutine);
+        }
+        villageEntranceCheckCoroutine = StartCoroutine(CheckVillageEntranceReachedAfterActivation());
+    }
+
+    private void StartVillageExitCheck()
+    {
+        if (villageExitCheckCoroutine != null)
+        {
+            StopCoroutine(villageExitCheckCoroutine);
+        }
+        villageExitCheckCoroutine = StartCoroutine(CheckVillageExitReached());
+    }
+
+    private IEnumerator CheckVillageEntranceReachedAfterActivation()
+    {
+        yield return null;
+
+        if (storyProcess != 1)
+        {
+            villageEntranceCheckCoroutine = null;
+            yield break;
+        }
+
+        if (IsPlayerAlreadyInsideVillageEntrance())
+        {
+            Debug.Log("VillageSceneStory: player already inside village entrance trigger after activation, auto advancing.");
+            OnVillageEntranceReached();
+        }
+
+        villageEntranceCheckCoroutine = null;
+    }
+
+    private IEnumerator CheckVillageExitReached()
+    {
+        while (storyProcess == 2)
+        {
+            if (IsPlayerInsideExitTrigger())
+            {
+                OnVillageExitReached();
+                break;
+            }
+
+            yield return new WaitForSeconds(0.1f);
+        }
+
+        villageExitCheckCoroutine = null;
+    }
+
+    private bool IsPlayerAlreadyInsideVillageEntrance()
+    {
+        if (villageTriggerPoint == null) return false;
+
+        Collider triggerCollider = villageTriggerPoint.GetComponent<Collider>();
+        if (triggerCollider == null) return false;
+
+        GameObject playerObject = GameObject.FindGameObjectWithTag("Player");
+        if (playerObject == null) return false;
+
+        Transform player = playerObject.transform;
+        Vector3 playerProbe = player.position + Vector3.up;
+        Vector3 closestPoint = triggerCollider.ClosestPoint(playerProbe);
+
+        if ((closestPoint - playerProbe).sqrMagnitude < 0.04f)
+        {
+            return true;
+        }
+
+        CharacterController characterController = playerObject.GetComponent<CharacterController>();
+        if (characterController != null)
+        {
+            Vector3 centerWorld = playerObject.transform.TransformPoint(characterController.center);
+            closestPoint = triggerCollider.ClosestPoint(centerWorld);
+            if ((closestPoint - centerWorld).sqrMagnitude < 0.04f)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private Transform ResolveBattleGuideTarget()
+    {
+        if (mark_gareth != null) return mark_gareth;
+        if (garethPosition != null) return garethPosition;
+        if (gareth != null) return gareth.transform;
+
+        Debug.LogWarning("VillageSceneStory: no valid Gareth target found for battle guidance.");
+        return null;
+    }
+
+    private Transform ResolveVillageExitTarget()
+    {
+        if (villageExitPosition != null) return villageExitPosition;
+        return ResolveBattleGuideTarget();
+    }
+
+    private bool IsPlayerInsideExitTrigger()
+    {
+        if (villageExitPosition == null) return false;
+
+        Collider exitCollider = villageExitPosition.GetComponent<Collider>();
+        if (exitCollider == null) return false;
+
+        GameObject playerObject = GameObject.FindGameObjectWithTag("Player");
+        if (playerObject == null) return false;
+
+        Transform player = playerObject.transform;
+        Vector3 playerProbe = player.position + Vector3.up;
+        Vector3 closestPoint = exitCollider.ClosestPoint(playerProbe);
+
+        if ((closestPoint - playerProbe).sqrMagnitude < 0.04f)
+        {
+            return true;
+        }
+
+        CharacterController characterController = playerObject.GetComponent<CharacterController>();
+        if (characterController != null)
+        {
+            Vector3 centerWorld = playerObject.transform.TransformPoint(characterController.center);
+            closestPoint = exitCollider.ClosestPoint(centerWorld);
+            if ((closestPoint - centerWorld).sqrMagnitude < 0.04f)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void ApplyVillageBattleBuff()
+    {
+        if (villageBattleBuffApplied) return;
+
+        PlayerAttributes player = GameObject.FindObjectOfType<PlayerAttributes>();
+        if (player == null)
+        {
+            Debug.LogWarning("VillageSceneStory: PlayerAttributes not found, cannot apply village battle buff.");
+            return;
+        }
+
+        player.Strength += 3;
+        player.commonAttackSpeed = Mathf.Max(player.commonAttackSpeed, 1.5f);
+        villageBattleBuffApplied = true;
+
+        Debug.Log($"VillageSceneStory: applied village battle buff to player. Strength={player.Strength}, commonAttackSpeed={player.commonAttackSpeed}");
     }
 }

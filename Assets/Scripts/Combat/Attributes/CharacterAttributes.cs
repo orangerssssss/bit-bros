@@ -214,7 +214,7 @@ public abstract class CharacterAttributes : MonoBehaviour
         MaxHealth = Constitution * 16 + Strength * 2;
         if (MaxHealth <= 0) MaxHealth = 1;
         if (health > MaxHealth) health = MaxHealth;
-        PhysicalAttack = Strength * 3;
+        PhysicalAttack = (int)(Strength * 5.5);
         PhysicalDefence = (int)(Constitution * 0.6 + Strength * 0.4);
         MagicAttack = (int)(Intelligence * 3.3);
         MagicDefence = (int)(Intelligence * 0.45 + Constitution * 0.6);

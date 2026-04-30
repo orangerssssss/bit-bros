@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class SimpleTrigger : MonoBehaviour
 {
-    [Tooltip("1=山洞任务, 3=出口任务（与你的 storyProcess 对应）")]
+    [Tooltip("触发器的任务类型：1=山洞任务, 2=进入村庄, 3=出口任务")]
     public int targetTaskId = 1;
 
     private bool triggered = false;
@@ -14,22 +14,35 @@ public class SimpleTrigger : MonoBehaviour
         {
             triggered = true;
 
-            // 村庄场景优先：用于任务2“进入村庄”完成判定
-            if (VillageSceneStory.Instance != null)
+            // 根据targetTaskId来区分场景和任务
+            if (targetTaskId == 2)
             {
-                VillageSceneStory.Instance.OnVillageEntranceReached();
-                return;
+                // 村庄场景：任务2 - 进入村庄
+                if (VillageSceneStory.Instance != null)
+                {
+                    VillageSceneStory.Instance.OnVillageEntranceReached();
+                    return;
+                }
             }
-
-            // 根据任务ID调用 MainSceneStory 中对应的回调
-            if (targetTaskId == 1)
+            else if (targetTaskId == 1)
             {
-
-                MainSceneStory.Instance.CompleteCaveTask();
+                // 山洞场景：任务1
+                if (MainSceneStory.Instance != null)
+                {
+                    MainSceneStory.Instance.CompleteCaveTask();
+                }
             }
             else if (targetTaskId == 3)
             {
-                MainSceneStory.Instance.CompleteExitTask();
+                // 出口任务
+                if (VillageSceneStory.Instance != null)
+                {
+                    VillageSceneStory.Instance.OnVillageExitReached();
+                }
+                else if (MainSceneStory.Instance != null)
+                {
+                    MainSceneStory.Instance.CompleteExitTask();
+                }
             }
         }
     }

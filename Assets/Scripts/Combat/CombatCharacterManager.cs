@@ -149,7 +149,7 @@ public class CombatCharacterManager : MonoBehaviour
         }
         if (nearestTagged != null)
         {
-            Debug.Log($"CombatCharacterManager: Prefer tagged Player -> {nearestTagged.gameObject.name} dist={minTaggedDist:F2}");
+            // Debug.Log($"CombatCharacterManager: Prefer tagged Player -> {nearestTagged.gameObject.name} dist={minTaggedDist:F2}");
             return nearestTagged;
         }
 

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// 玩家属性类
@@ -13,7 +14,7 @@ public class PlayerAttributes : CharacterAttributes
 
     public int pointsPerLevel = 2;
     public float moveSpeedMultiplier = 1.0f;// 移动速度
-    public float commonAttackSpeed = 1.0f;// 攻击速度
+    public float commonAttackSpeed = 1.4f;// 攻击速度
 
     public ParticleSystem fx_levelUp;
     public Transform respawnPoint;
@@ -234,6 +235,20 @@ public class PlayerAttributes : CharacterAttributes
         }
 
         InitAttributes();
+        
+        // 注册场景加载事件，进入新场景时恢复血量满
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    /// <summary>
+    /// 场景加载时恢复血量为满
+    /// </summary>
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        RecalculateAttributes();
+        health = MaxHealth;
+        mana = MaxMana;
+        Debug.Log($"PlayerAttributes: Scene loaded, restored health to {health}/{MaxHealth}");
     }
 
     /// <summary>
