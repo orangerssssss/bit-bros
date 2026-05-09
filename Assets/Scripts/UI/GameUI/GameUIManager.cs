@@ -132,13 +132,55 @@ public class GameUIManager : MonoBehaviour
 
     public void CloseAllWindow()
     {
-        if (GameMenu.Instance.menuPanel.activeSelf) 
-            GameMenu.Instance.CloseMenu();
-        if (package.activeSelf) 
-            InventoryManager.Instance.PackageActiveSwitch();
-        if (villageStore.activeSelf) 
-            InventoryManager.Instance.VillageStoreActiveSwitch();
-        DialogDisplayer.Instance.ExitDialog();
+        // Guard against missing singletons or null references so UI closing
+        // during death does not throw exceptions and interrupt game flow.
+        try
+        {
+            if (GameMenu.Instance != null && GameMenu.Instance.menuPanel != null && GameMenu.Instance.menuPanel.activeSelf)
+            {
+                GameMenu.Instance.CloseMenu();
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("GameUIManager.CloseAllWindow: GameMenu close failed: " + e.Message);
+        }
+
+        try
+        {
+            if (package != null && package.activeSelf && InventoryManager.Instance != null)
+            {
+                InventoryManager.Instance.PackageActiveSwitch();
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("GameUIManager.CloseAllWindow: Inventory Package switch failed: " + e.Message);
+        }
+
+        try
+        {
+            if (villageStore != null && villageStore.activeSelf && InventoryManager.Instance != null)
+            {
+                InventoryManager.Instance.VillageStoreActiveSwitch();
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("GameUIManager.CloseAllWindow: Village store switch failed: " + e.Message);
+        }
+
+        try
+        {
+            if (DialogDisplayer.Instance != null)
+            {
+                DialogDisplayer.Instance.ExitDialog();
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("GameUIManager.CloseAllWindow: DialogDisplayer exit failed: " + e.Message);
+        }
     }
 
     public void ConfigurePlayerStatusUI()

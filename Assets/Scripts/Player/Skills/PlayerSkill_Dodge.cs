@@ -27,6 +27,8 @@ public class PlayerSkill_Dodge : MonoBehaviour
 
     private void Update()
     {
+        if (playerAttributes == null || playerAttributes.health <= 0) return;
+
         if (combatController.playerSkillControllable) Dodge();
     }
 

@@ -187,11 +187,22 @@ public abstract class CharacterAttributes : MonoBehaviour
 
             if (health <= 0)
             {
-                DeathReact();
-                var ccm = CombatCharacterManager.Instance;
-                if (ccm != null)
+                try
                 {
-                    ccm.Unregister(this);
+                    DeathReact();
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogWarning($"CharacterAttributes: DeathReact threw exception: {e.Message}");
+                }
+                finally
+                {
+                    var ccm = CombatCharacterManager.Instance;
+                    if (ccm != null)
+                    {
+                        try { ccm.Unregister(this); }
+                        catch (System.Exception e) { Debug.LogWarning($"CharacterAttributes: Unregister threw: {e.Message}"); }
+                    }
                 }
             }
         }

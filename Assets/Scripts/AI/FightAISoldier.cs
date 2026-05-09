@@ -36,6 +36,8 @@ public class FightAISoldier : FightAI
     private BoxAttackArea attackBox;// 攻击碰撞盒
     [SerializeField]
     private AudioSource attackAudioSource;
+    [SerializeField, Range(0.1f, 2f), Tooltip("Per-instance damage multiplier for attacks (use <1.0 to weaken)")]
+    private float damageMultiplier = 1.0f;
 
     private float fightStateTimer;// 战斗状态行为计时器
     private float attackTimer;// 攻击计时器
@@ -94,10 +96,49 @@ public class FightAISoldier : FightAI
         // Ensure animator does not apply root motion so script-controlled transform movement works
         if (animator != null)
         {
-            if (animator.applyRootMotion)
+            if (!allowRootMotion)
             {
-                animator.applyRootMotion = false;
-                Debug.Log($"{name} FightAISoldier: Animator.applyRootMotion disabled to allow scripted movement fallback.");
+                if (animator.applyRootMotion)
+                {
+                    animator.applyRootMotion = false;
+                    Debug.Log($"{name} FightAISoldier: Animator.applyRootMotion disabled to allow scripted movement fallback.");
+                }
+            }
+            else
+            {
+                if (!animator.applyRootMotion)
+                {
+                    animator.applyRootMotion = true;
+                    Debug.Log($"{name} FightAISoldier: Animator.applyRootMotion enabled (allowRootMotion=true).");
+                }
+            }
+        }
+
+        // Auto-assign attackBox and attackAudioSource if not set in inspector (helps when weapon/props are children of model)
+        if (attackBox == null)
+        {
+            attackBox = GetComponentInChildren<BoxAttackArea>(true);
+            if (attackBox != null)
+            {
+                Debug.Log($"{name} FightAISoldier: auto-assigned attackBox from child '{attackBox.gameObject.name}'");
+                if (fightAttributes != null)
+                {
+                    attackBox.combatCamp = fightAttributes.combatCamp;
+                    Debug.Log($"{name} FightAISoldier: Set attackBox.combatCamp = {attackBox.combatCamp}");
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"{name} FightAISoldier: attackBox not assigned and none found in children.");
+            }
+        }
+
+        if (attackAudioSource == null)
+        {
+            attackAudioSource = GetComponentInChildren<AudioSource>(true);
+            if (attackAudioSource != null)
+            {
+                Debug.Log($"{name} FightAISoldier: auto-assigned attackAudioSource from child '{attackAudioSource.gameObject.name}'");
             }
         }
         // cache physics/movement components
@@ -154,6 +195,29 @@ public class FightAISoldier : FightAI
                         }
                     }
                 }
+
+                // Configure Rigidbody for physics-based fallback movement when NavMesh not available
+                try
+                {
+                    if (rb != null)
+                    {
+                        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+                        rb.interpolation = RigidbodyInterpolation.Interpolate;
+                        // If agent is not usable (no NavMesh), rely on Rigidbody physics movement
+                        if (agent == null || !agent.enabled || !agent.isOnNavMesh)
+                        {
+                            rb.isKinematic = false;
+                            rb.useGravity = true;
+                            Debug.Log($"{name} FightAISoldier: Rigidbody set non-kinematic for fallback physics movement.");
+                        }
+                        else
+                        {
+                            // keep kinematic while NavMeshAgent controls motion to avoid physics conflicts
+                            rb.isKinematic = true;
+                        }
+                    }
+                }
+                catch { }
             }
         }
     }
@@ -399,6 +463,10 @@ public class FightAISoldier : FightAI
 
         if (!animator.GetBool("Alarm")) animator.SetBool("Alarm", true);
 
+        // Update fight state timer even when using fallback movement so that
+        // moveForward and other fight-state decisions recover after stagger/block.
+        FightStateUpdate(dis < fightDistance);
+
         // chase
         if (moveForward)
         {
@@ -413,6 +481,17 @@ public class FightAISoldier : FightAI
                 // compute desired move delta for this frame
                 Vector3 moveDelta = dir.normalized * speed * Time.deltaTime;
 
+                // If this instance uses root motion, do not perform scripted translational movement;
+                // let the Animator drive position. We still update rotation and MoveSpeed so
+                // the Animator transitions into the proper locomotion state.
+                if (allowRootMotion)
+                {
+                    Quaternion targetRot = Quaternion.LookRotation(dir, Vector3.up);
+                    transform.rotation = Quaternion.Lerp(transform.rotation, targetRot, Time.deltaTime * 12.0f);
+                    targetMoveSpeed = speed;
+                }
+                else
+                {
                 if (charController != null)
                 {
                     // Use capsule cast to test collisions ahead of the CharacterController.
@@ -464,16 +543,53 @@ public class FightAISoldier : FightAI
                         }
                     }
                 }
-                else
-                {
-                    transform.position += moveDelta;
-                }
-                Quaternion targetRot = Quaternion.LookRotation(dir, Vector3.up);
-                transform.rotation = Quaternion.Lerp(transform.rotation, targetRot, Time.deltaTime * 12.0f);
-                targetMoveSpeed = speed;
-                if (before == transform.position)
-                {
-                    Debug.LogWarning($"{name} FightAISoldier: Fallback movement attempt did not change position (blocked). rb={(rb != null)}, charController={(charController != null)}, animator.applyRootMotion={(animator != null ? animator.applyRootMotion : false)}");
+                    else
+                    {
+                        // Collision-aware fallback for transform movement when no Rigidbody or CharacterController.
+                        bool moved = false;
+                        if (enemyCollider != null)
+                        {
+                            try
+                            {
+                                Bounds b = enemyCollider.bounds;
+                                Vector3 center = b.center;
+                                Vector3 halfExtents = b.extents;
+                                RaycastHit hitInfo;
+                                float checkDist = moveDelta.magnitude + 0.01f;
+                                if (!Physics.BoxCast(center, halfExtents, moveDelta.normalized, out hitInfo, transform.rotation, checkDist, ~0, QueryTriggerInteraction.Ignore))
+                                {
+                                    transform.position += moveDelta;
+                                    moved = true;
+                                }
+                                else
+                                {
+                                    // try sliding along hit normal
+                                    Vector3 slide = Vector3.ProjectOnPlane(moveDelta, hitInfo.normal);
+                                    if (slide.sqrMagnitude > 0.0001f)
+                                    {
+                                        if (!Physics.BoxCast(center, halfExtents, slide.normalized, out hitInfo, transform.rotation, slide.magnitude + 0.01f, ~0, QueryTriggerInteraction.Ignore))
+                                        {
+                                            transform.position += slide;
+                                            moved = true;
+                                        }
+                                    }
+                                }
+                            }
+                            catch { }
+                        }
+                        if (!moved)
+                        {
+                            // last-resort movement (may overlap) if collider info unavailable
+                            transform.position += moveDelta;
+                        }
+                    }
+                    Quaternion targetRot = Quaternion.LookRotation(dir, Vector3.up);
+                    transform.rotation = Quaternion.Lerp(transform.rotation, targetRot, Time.deltaTime * 12.0f);
+                    targetMoveSpeed = speed;
+                    if (before == transform.position)
+                    {
+                        Debug.LogWarning($"{name} FightAISoldier: Fallback movement attempt did not change position (blocked). rb={(rb != null)}, charController={(charController != null)}, animator.applyRootMotion={(animator != null ? animator.applyRootMotion : false)}");
+                    }
                 }
             }
             else
@@ -485,7 +601,18 @@ public class FightAISoldier : FightAI
                     if (Random.Range(0f, 1f) < attackDesire)
                     {
                         Debug.Log($"{name} FightAISoldier: Triggering Attack (in FallbackAction)");
-                        animator.SetTrigger("Attack");
+                        TriggerAttackParameter();
+                        // schedule fallback damage in case the Slash animation clip doesn't have AttackEvent
+                        ScheduleAttackFallback(fallbackAttackDelay, () =>
+                        {
+                            if (attackBox != null && fightAttributes != null)
+                            {
+                                int atk = Mathf.Max(1, Mathf.RoundToInt(fightAttributes.PhysicalAttack * damageMultiplier));
+                                bool h = attackBox.AreaDamage(atk, true);
+                                if (!h) Debug.Log($"{name} FightAISoldier: Fallback AreaDamage (no hits). attack={atk}");
+                            }
+                            try { PlayAttackSFX(); } catch { }
+                        });
                         attackTimer = 0f;
                     }
                     else
@@ -540,6 +667,7 @@ public class FightAISoldier : FightAI
         if (animator != null)
         {
             animator.ResetTrigger("Attack");
+            animator.ResetTrigger("Slash");
             animator.ResetTrigger("Impact");
             animator.SetBool("Alarm", false);
             animator.SetFloat("MoveSpeed", 0f);
@@ -634,7 +762,7 @@ public class FightAISoldier : FightAI
                             if (!animator.GetCurrentAnimatorStateInfo(0).IsTag("Attack") && !animator.GetNextAnimatorStateInfo(0).IsTag("Attack"))
                             {
                                 Debug.Log($"{name} FightAISoldier: Triggering Attack (in Action)");
-                                animator.SetTrigger("Attack");
+                                TriggerAttackParameter();
                                 attackTimer = 0f;
                             }
                             else
@@ -724,18 +852,64 @@ public class FightAISoldier : FightAI
     /// </summary>
     private void AttackEvent()
     {
+        // mark that the animation event fired so fallback won't apply duplicate damage
+        attackEventFired = true;
         if (agent != null && agent.enabled && agent.isOnNavMesh)
         {
             agent.Move(transform.forward * 0.01f);
         }
-        Debug.Log($"{name} FightAISoldier: AttackEvent invoked, performing AreaDamage (atk={fightAttributes.PhysicalAttack})");
-        attackBox.AreaDamage(fightAttributes.PhysicalAttack, true);
+        int atk = Mathf.Max(1, Mathf.RoundToInt(fightAttributes.PhysicalAttack * damageMultiplier));
+        Debug.Log($"{name} FightAISoldier: AttackEvent invoked, performing AreaDamage (atk={atk})");
+
+        if (attackBox == null)
+        {
+            Debug.LogWarning($"{name} FightAISoldier: AttackEvent - attackBox is null (no BoxAttackArea assigned)");
+            return;
+        }
+
+        // Log collider info for debugging size/position issues
+        var bc = attackBox.GetComponent<BoxCollider>();
+        if (bc != null)
+        {
+            Vector3 worldCenter = bc.transform.TransformPoint(bc.center);
+            Vector3 worldSize = Vector3.Scale(bc.size, bc.transform.lossyScale);
+            Debug.Log($"{name} FightAISoldier: attackBox center={worldCenter:F3}, size={bc.size} (worldSize={worldSize})");
+        }
+
+        bool hit = attackBox.AreaDamage(atk, true);
+        if (!hit)
+        {
+            Debug.Log($"{name} FightAISoldier: AttackEvent - AreaDamage returned no hits.");
+        }
+        // ensure SFX plays even if AnimationEvent wasn't added to the clip
+        try { PlayAttackSFX(); } catch { }
     }
 
     private void PlayAttackSFX()
     {
-        attackAudioSource.Stop();
-        attackAudioSource.Play();
+        if (attackAudioSource == null)
+        {
+            attackAudioSource = GetComponentInChildren<AudioSource>(true);
+            if (attackAudioSource != null)
+            {
+                Debug.Log($"{name} FightAISoldier: PlayAttackSFX auto-assigned AudioSource from '{attackAudioSource.gameObject.name}'");
+            }
+            else
+            {
+                Debug.LogWarning($"{name} FightAISoldier: PlayAttackSFX - no AudioSource assigned or found in children.");
+                return;
+            }
+        }
+
+        if (attackAudioSource.clip != null)
+        {
+            // use PlayOneShot to avoid interrupting other audio on the source
+            attackAudioSource.PlayOneShot(attackAudioSource.clip);
+        }
+        else
+        {
+            Debug.LogWarning($"{name} FightAISoldier: PlayAttackSFX - assigned AudioSource '{attackAudioSource.gameObject.name}' has no AudioClip.");
+        }
     }
 
     public override void OnShieldBlocked(float staggerDuration)

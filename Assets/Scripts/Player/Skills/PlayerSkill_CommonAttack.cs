@@ -37,6 +37,9 @@ public class PlayerSkill_CommonAttack : MonoBehaviour
 
     private void Update()
     {
+        // Prevent attacking if player is dead
+        if (playerAttributes == null || playerAttributes.health <= 0) return;
+
         // 在能够使用技能且装备有武器时才能进行普通攻击
         // Disable common attack while shielding (right mouse)
         if (combatController.playerSkillControllable && combatController.equipedWeaponID > 0 && combatController.WeaponVisible && !combatController.isShielding)
@@ -109,6 +112,8 @@ public class PlayerSkill_CommonAttack : MonoBehaviour
     /// <param name="index">攻击索引, 第一段普通攻击为0, 第二段为1...</param>
     private void CommonAttackDamage(int index)
     {
+        if (playerAttributes == null || playerAttributes.health <= 0) return;
+
         if (attackBox.AreaDamage(playerAttributes.PhysicalAttack, true))
         {
             // Play hit SFX on dedicated hit AudioSource if available, otherwise fallback to combatAudioSource

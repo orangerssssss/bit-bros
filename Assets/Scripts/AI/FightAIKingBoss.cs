@@ -35,6 +35,8 @@ public class FightAIKingBoss : FightAI
     [Header("Boss Rhythm")]
     [SerializeField] private float baseAttackCooldown = 1.5f;
     [SerializeField] private float actionDecisionInterval = 0.45f;
+    [SerializeField, Tooltip("If true, slightly randomize timing values on Init to add variation per-instance.")]
+    private bool uncertainInterval = true;
     [SerializeField] private float strafeDuration = 1.3f;
     [SerializeField] private float retreatDuration = 0.7f;
     [SerializeField] private float lungeDuration = 0.75f;
@@ -53,6 +55,8 @@ public class FightAIKingBoss : FightAI
     [SerializeField] private AudioSource attackAudioSource;
     [SerializeField] private float comboFinisherDamageMultiplier = 1.65f;
     [SerializeField] private float lungeDamageMultiplier = 1.45f;
+    [SerializeField, Range(0f, 1f), Tooltip("Chance the boss will choose to attack when in close range (0..1)")]
+    private float attackDesire = 0.75f;
 
     private CharacterAttributes target;
     private Vector3 startPosition;
@@ -84,9 +88,30 @@ public class FightAIKingBoss : FightAI
 
         if (animator != null)
         {
-            animator.applyRootMotion = false;
+            if (!allowRootMotion)
+            {
+                if (animator.applyRootMotion)
+                {
+                    animator.applyRootMotion = false;
+                }
+            }
+            else
+            {
+                if (!animator.applyRootMotion)
+                {
+                    animator.applyRootMotion = true;
+                }
+            }
             animator.SetFloat("MoveSpeed", 0f);
             animator.SetBool("Alarm", false);
+        }
+
+        // small per-instance timing variation to avoid identical behaviour
+        if (uncertainInterval)
+        {
+            actionDecisionInterval += Random.Range(-actionDecisionInterval / 8f, actionDecisionInterval / 8f);
+            baseAttackCooldown += Random.Range(-baseAttackCooldown / 8f, baseAttackCooldown / 8f);
+            Debug.Log($"{name} FightAIKingBoss: randomized timings actionDecisionInterval={actionDecisionInterval:F3} baseAttackCooldown={baseAttackCooldown:F3}");
         }
 
         if (agent != null)
@@ -94,6 +119,25 @@ public class FightAIKingBoss : FightAI
             agent.speed = chaseSpeed;
             agent.angularSpeed = 720f;
             agent.acceleration = 60f;
+        }
+
+        // Auto-assign attackBox and audio source if not set
+        if (attackBox == null)
+        {
+            attackBox = GetComponentInChildren<BoxAttackArea>(true);
+            if (attackBox != null && fightAttributes != null)
+            {
+                attackBox.combatCamp = fightAttributes.combatCamp;
+                Debug.Log($"{name} FightAIKingBoss: auto-assigned attackBox '{attackBox.gameObject.name}' and set combatCamp={attackBox.combatCamp}");
+            }
+        }
+        if (attackAudioSource == null)
+        {
+            attackAudioSource = GetComponentInChildren<AudioSource>(true);
+            if (attackAudioSource != null)
+            {
+                Debug.Log($"{name} FightAIKingBoss: auto-assigned attackAudioSource from '{attackAudioSource.gameObject.name}'");
+            }
         }
     }
 
@@ -236,6 +280,7 @@ public class FightAIKingBoss : FightAI
         if (animator != null)
         {
             animator.ResetTrigger("Attack");
+            animator.ResetTrigger("Slash");
             animator.ResetTrigger("Impact");
             animator.ResetTrigger("Died");
             animator.SetBool("Alarm", false);
@@ -359,17 +404,26 @@ public class FightAIKingBoss : FightAI
 
         if (distance <= meleeDistance)
         {
-            float roll = Random.value;
-            if (phaseTwo && roll < 0.25f)
+            // Only attempt melee attacks based on attackDesire chance
+            if (Random.value <= attackDesire)
             {
-                BeginLunge();
-            }
-            else if (roll < 0.7f)
-            {
-                BeginCombo();
+                float roll = Random.value;
+                if (phaseTwo && roll < 0.25f)
+                {
+                    BeginLunge();
+                }
+                else if (roll < 0.7f)
+                {
+                    BeginCombo();
+                }
+                else
+                {
+                    BeginStrafe();
+                }
             }
             else
             {
+                // retreat/strafe instead of attacking this time
                 BeginStrafe();
             }
             return;
@@ -394,6 +448,7 @@ public class FightAIKingBoss : FightAI
         StopMotion();
         queuedComboHits = phaseTwo ? Random.Range(2, 4) : Random.Range(1, 3);
         currentDamageMultiplier = queuedComboHits >= 3 ? comboFinisherDamageMultiplier : 1f;
+        Debug.Log($"{name} FightAIKingBoss: BeginCombo queuedComboHits={queuedComboHits}");
         TriggerAttack();
     }
 
@@ -428,7 +483,7 @@ public class FightAIKingBoss : FightAI
         Vector3 orbitTarget = target.transform.position - toTarget.normalized * preferredDistance + side * 1.5f;
         MoveTo(orbitTarget, strafeSpeed);
 
-        if (distance <= meleeDistance && CanAttack() && Random.value < 0.3f)
+        if (distance <= meleeDistance && CanAttack() && Random.value < attackDesire)
         {
             BeginCombo();
             return;
@@ -526,11 +581,27 @@ public class FightAIKingBoss : FightAI
         {
             queuedComboHits--;
         }
-        animator.SetTrigger("Attack");
+        Debug.Log($"{name} FightAIKingBoss: TriggerAttack queuedComboRemaining={queuedComboHits}");
+        // Prefer 'Slash' trigger if the Animator has it; fallback to 'Attack'
+        TriggerAttackParameter();
+        // schedule fallback in case the animation clip doesn't contain AttackEvent
+        float delay = fallbackAttackDelay;
+        ScheduleAttackFallback(delay, () =>
+        {
+            if (attackBox != null && fightAttributes != null)
+            {
+                float damageMultiplier = phaseTwo ? phaseTwoDamageMultiplier : 1f;
+                int damage = Mathf.Max(1, Mathf.RoundToInt(fightAttributes.PhysicalAttack * damageMultiplier * currentDamageMultiplier));
+                attackBox.AreaDamage(damage, true);
+            }
+            try { PlayAttackSFX(); } catch { }
+        });
     }
 
     private void AttackEvent()
     {
+        // mark that animation event fired
+        attackEventFired = true;
         if (attackBox == null || fightAttributes == null)
         {
             return;
@@ -543,7 +614,9 @@ public class FightAIKingBoss : FightAI
 
         float damageMultiplier = phaseTwo ? phaseTwoDamageMultiplier : 1f;
         int damage = Mathf.RoundToInt(fightAttributes.PhysicalAttack * damageMultiplier * currentDamageMultiplier);
+        Debug.Log($"{name} FightAIKingBoss: AttackEvent invoked, damage={Mathf.Max(1, damage)} currentDamageMultiplier={currentDamageMultiplier}");
         attackBox.AreaDamage(Mathf.Max(1, damage), true);
+        try { PlayAttackSFX(); } catch { }
     }
 
     private void PlayAttackSFX()
@@ -574,7 +647,16 @@ public class FightAIKingBoss : FightAI
             direction.y = 0f;
             if (direction.sqrMagnitude > 0.001f)
             {
-                MoveDirect(direction.normalized, speed);
+                if (allowRootMotion)
+                {
+                    // Let animator drive movement; just update rotation/speed
+                    FaceTarget(transform.position + direction, turnSpeed);
+                    UpdateMoveSpeed(speed);
+                }
+                else
+                {
+                    MoveDirect(direction.normalized, speed);
+                }
             }
             else
             {
@@ -598,9 +680,18 @@ public class FightAIKingBoss : FightAI
             agent.velocity = Vector3.zero;
         }
 
-        transform.position += direction.normalized * speed * Time.deltaTime;
-        FaceTarget(transform.position + direction, turnSpeed);
-        UpdateMoveSpeed(speed);
+        if (allowRootMotion)
+        {
+            // Animator should drive root motion; still update rotation and speed param
+            FaceTarget(transform.position + direction, turnSpeed);
+            UpdateMoveSpeed(speed);
+        }
+        else
+        {
+            transform.position += direction.normalized * speed * Time.deltaTime;
+            FaceTarget(transform.position + direction, turnSpeed);
+            UpdateMoveSpeed(speed);
+        }
     }
 
     private void StopMotion()
@@ -672,6 +763,7 @@ public class FightAIKingBoss : FightAI
 
     private bool IsInAttackAnimation()
     {
+        if (attackLocked) return true;
         AnimatorStateInfo currentState = animator.GetCurrentAnimatorStateInfo(0);
         AnimatorStateInfo nextState = animator.GetNextAnimatorStateInfo(0);
         return currentState.IsTag("Attack") || nextState.IsTag("Attack");
