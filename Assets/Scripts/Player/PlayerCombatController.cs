@@ -266,6 +266,12 @@ private float lastShieldDamageTime;
             normal = shieldHolder.forward;
         }
 
+        var playerAttributes = GetComponent<PlayerAttributes>();
+        if (playerAttributes != null)
+        {
+            playerAttributes.RestoreStamina(playerAttributes.shieldBlockStaminaRestore);
+        }
+
         PlayShieldBlockEffect(pos, normal);
     }
 
@@ -1041,4 +1047,3 @@ public class PlayerEquipmentModel
     public int equipmentID;
     public GameObject equipmentModel;
 }
-

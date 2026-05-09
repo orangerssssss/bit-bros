@@ -59,12 +59,14 @@ public class PlayerSkill_CommonAttack : MonoBehaviour
             {
                 if (animator.GetCurrentAnimatorStateInfo(0).IsName("Move"))// 处于移动状态可以触发
                 {
+                    if (!playerAttributes.TryConsumeStamina(playerAttributes.commonAttackStaminaCost)) return;
                     animator.SetTrigger("CommonAttack");
                 }
                 else if (animator.GetCurrentAnimatorStateInfo(0).IsTag("CommonAttack")
                     && animator.GetCurrentAnimatorStateInfo(0).normalizedTime > Mathf.Clamp(0.35f / animator.GetFloat("CommonAttackSpeed"), 0, 0.8f)
                     && !animator.GetNextAnimatorStateInfo(0).IsTag("CommonAttack"))// 普通攻击接近结束状态可以触发
                 {
+                    if (!playerAttributes.TryConsumeStamina(playerAttributes.commonAttackStaminaCost)) return;
                     animator.SetTrigger("CommonAttack");
                 }
             }

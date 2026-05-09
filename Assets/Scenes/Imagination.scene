@@ -6727,8 +6727,8 @@ MonoBehaviour:
   healthBarSlow: {fileID: 421882366}
   expBar: {fileID: 1196071113}
   expText: {fileID: 58404005}
-  manaBar: {fileID: 1176866551}
-  manaText: {fileID: 265764039}
+  staminaBar: {fileID: 1176866551}
+  staminaText: {fileID: 265764039}
   interact: {fileID: 1515007395}
   interactTextLabel: {fileID: 1249912606}
   dialog: {fileID: 1078335825}
@@ -29182,7 +29182,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1147785518
 RectTransform:
   m_ObjectHideFlags: 0
@@ -37127,6 +37127,11 @@ MonoBehaviour:
   pointsPerLevel: 2
   moveSpeedMultiplier: 1
   commonAttackSpeed: 1
+  sprintStaminaCostPerSecond: 7.2
+  dodgeStaminaCost: 22.4
+  commonAttackStaminaCost: 9.6
+  staminaRecoverPerSecond: 30
+  staminaRecoverDelay: 0.75
   fx_levelUp: {fileID: 0}
   respawnPoint: {fileID: 0}
   attributesAddedPoints: 00000000000000000000000000000000000000000000000000000000000000000000000000000000

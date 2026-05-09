@@ -14,7 +14,13 @@ public class PlayerAttributes : CharacterAttributes
 
     public int pointsPerLevel = 2;
     public float moveSpeedMultiplier = 1.0f;// 移动速度
-    public float commonAttackSpeed = 1.4f;// 攻击速度
+    public float commonAttackSpeed = 1.75f;// 攻击速度
+    public float sprintStaminaCostPerSecond = 7.2f;
+    public float dodgeStaminaCost = 22.4f;
+    public float commonAttackStaminaCost = 9.6f;
+    public float staminaRecoverPerSecond = 30.0f;
+    public float staminaRecoverDelay = 0.75f;
+    public float shieldBlockStaminaRestore = 6.0f;
 
     public ParticleSystem fx_levelUp;
     public Transform respawnPoint;
@@ -25,8 +31,14 @@ public class PlayerAttributes : CharacterAttributes
     private List<int> levelUpExperience = new List<int>() { 15, 20, 30, 45, 99, 999 };
 
     private float protectTimer;
+    private float stamina;
+    private float maxStamina;
+    private float staminaRecoverCooldown;
+    private float staminaTipCooldown;
 
     public int AttributePoints { get; private set; }
+    public int CurrentStaminaInt => Mathf.RoundToInt(stamina);
+    public int MaxStaminaInt => Mathf.RoundToInt(maxStamina);
 
     private void Update()
     {
@@ -61,6 +73,13 @@ public class PlayerAttributes : CharacterAttributes
             protectTimer -= Time.deltaTime;
             if (protectTimer <= 0) protect = false;
         }
+
+        if (staminaTipCooldown > 0)
+        {
+            staminaTipCooldown -= Time.deltaTime;
+        }
+
+        UpdateStamina(Time.deltaTime);
 
         if (Input.GetKeyDown(KeyCode.O))
         {
@@ -107,6 +126,7 @@ public class PlayerAttributes : CharacterAttributes
         
         health = MaxHealth;
         mana = MaxMana;
+        stamina = maxStamina;
 
         GameUIManager.Instance.messageTip.ShowTip("你升级了");
     }
@@ -248,6 +268,8 @@ public class PlayerAttributes : CharacterAttributes
         RecalculateAttributes();
         health = MaxHealth;
         mana = MaxMana;
+        stamina = maxStamina;
+        staminaRecoverCooldown = 0;
         Debug.Log($"PlayerAttributes: Scene loaded, restored health to {health}/{MaxHealth}");
     }
 
@@ -258,6 +280,8 @@ public class PlayerAttributes : CharacterAttributes
     {
         health = MaxHealth;
         mana = MaxMana;
+        stamina = maxStamina;
+        staminaRecoverCooldown = 0;
         var ccm = CombatCharacterManager.Instance;
         if (ccm != null)
             ccm.Register(this);
@@ -305,6 +329,73 @@ public class PlayerAttributes : CharacterAttributes
         animator.SetTrigger("Reset");
         // 打开输入
         PlayerInputManager.Instance.OpenAllInput();
+    }
+
+    public void RecalculateStamina()
+    {
+        maxStamina = (60.0f + Constitution * 4.0f) * 1.5f;
+        if (maxStamina <= 0) maxStamina = 1.0f;
+        stamina = Mathf.Clamp(stamina, 0, maxStamina);
+    }
+
+    public bool TryConsumeStamina(float amount)
+    {
+        if (amount <= 0) return true;
+        if (stamina <= 0)
+        {
+            ShowLackOfStaminaTip();
+            return false;
+        }
+
+        stamina = Mathf.Max(0, stamina - amount);
+        staminaRecoverCooldown = staminaRecoverDelay;
+        return true;
+    }
+
+    public bool HasEnoughStamina(float amount)
+    {
+        return stamina >= amount;
+    }
+
+    public void RestoreStamina(float amount)
+    {
+        if (amount <= 0) return;
+        stamina = Mathf.Min(maxStamina, stamina + amount);
+    }
+
+    public void SetInvulnerable(float seconds)
+    {
+        if (seconds <= 0) return;
+
+        protect = true;
+        protectTimer = Mathf.Max(protectTimer, seconds);
+    }
+
+    private void UpdateStamina(float deltaTime)
+    {
+        if (health <= 0) return;
+
+        if (staminaRecoverCooldown > 0)
+        {
+            staminaRecoverCooldown -= deltaTime;
+            return;
+        }
+
+        if (stamina < maxStamina)
+        {
+            stamina = Mathf.Min(maxStamina, stamina + staminaRecoverPerSecond * deltaTime);
+        }
+    }
+
+    private void ShowLackOfStaminaTip()
+    {
+        if (staminaTipCooldown > 0) return;
+
+        staminaTipCooldown = 0.5f;
+        if (GameUIManager.Instance != null && GameUIManager.Instance.messageTip != null)
+        {
+            GameUIManager.Instance.messageTip.ShowTip("体力不足");
+        }
     }
 
     public void AllocatePointToConstitution(bool add)

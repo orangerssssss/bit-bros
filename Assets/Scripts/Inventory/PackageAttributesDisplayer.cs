@@ -29,7 +29,7 @@ public class PackageAttributesDisplayer : MonoBehaviour
     [SerializeField]
     private Text magicDefenceText;// 魔法防御
     [SerializeField]
-    private Text manaText;// 魔法值
+    private Text manaText;// 体力值
 
     [SerializeField]
     private Button constitutionAdd;
@@ -109,7 +109,7 @@ public class PackageAttributesDisplayer : MonoBehaviour
         physicalDefenceText.text = "物理防御: " + playerAttributes.PhysicalDefence;
         magicAttackText.text = "魔法攻击: " + playerAttributes.MagicAttack;
         magicDefenceText.text = "魔法防御: " + playerAttributes.MagicDefence;
-        manaText.text = "魔法值: " + playerAttributes.MaxMana;
+        manaText.text = "体力值: " + playerAttributes.MaxStaminaInt;
 
         constitution = playerAttributes.Constitution;
         strength = playerAttributes.Strength;

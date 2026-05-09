@@ -108,7 +108,11 @@ public class PlayerMoveController : MonoBehaviour
                 targetRotation.SetLookRotation(moveDirection, Vector3.up);
 
                 // 奔跑
-                if (Input.GetKey(KeyCode.LeftShift))
+                bool canRun = Input.GetKey(KeyCode.LeftShift)
+                    && playerAttributes != null
+                    && playerAttributes.TryConsumeStamina(playerAttributes.sprintStaminaCostPerSecond * Time.deltaTime);
+
+                if (canRun)
                 {
                     moveDirection *= baseRunSpeed * playerAttributes.moveSpeedMultiplier;
                     moveSpeedXZ = 1.0f;

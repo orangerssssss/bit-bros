@@ -12,7 +12,27 @@ public class SceneTransition : MonoBehaviour
         if (other.CompareTag("Player"))
         {
             Debug.Log("Loading scene: " + sceneName);
-            SceneManager.LoadScene(sceneName);
+
+            if (string.IsNullOrWhiteSpace(sceneName))
+            {
+                Debug.LogError("SceneTransition: sceneName is empty.");
+                return;
+            }
+
+            if (!Application.CanStreamedLevelBeLoaded(sceneName))
+            {
+                Debug.LogError($"SceneTransition: Scene '{sceneName}' can't be loaded. Add it to Build Settings or check the exact scene name.");
+                return;
+            }
+
+            if (SceneLoader.instance != null)
+            {
+                SceneLoader.instance.LoadScene(sceneName, true);
+            }
+            else
+            {
+                SceneManager.LoadScene(sceneName);
+            }
         }
     }
 }

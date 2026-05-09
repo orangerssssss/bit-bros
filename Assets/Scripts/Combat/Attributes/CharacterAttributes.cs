@@ -220,5 +220,10 @@ public abstract class CharacterAttributes : MonoBehaviour
         MagicDefence = (int)(Intelligence * 0.45 + Constitution * 0.6);
         MaxMana = Intelligence;
         if (mana > MaxMana) mana = MaxMana;
+
+        if (this is PlayerAttributes player)
+        {
+            player.RecalculateStamina();
+        }
     }
 }

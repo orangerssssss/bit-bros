@@ -12,10 +12,11 @@ public class HeadUpDisplayer : MonoBehaviour
     private int level = -1;// 当前显示等级
     private int health = -1;// 当前显示生命值
     private int maxHealth = -1;// 当前显示最大生命值
-    private int exp = -1;// 当前显示经验
-    private int maxExp = -1;// 当前显示最大经验
-    private int mana = -1;// 当前显示魔法值
-    private int maxMana = -1;// 当前显示最大魔法值
+    private int stamina = -1;// 当前显示体力值
+    private int maxStamina = -1;// 当前显示最大体力值
+    private Color staminaHighColor = new Color(0.20f, 0.78f, 0.29f);
+    private Color staminaMidColor = new Color(0.92f, 0.74f, 0.16f);
+    private Color staminaLowColor = new Color(0.86f, 0.23f, 0.19f);
 
     private void Awake()
     {
@@ -29,23 +30,8 @@ public class HeadUpDisplayer : MonoBehaviour
 
     private void Update()
     {
-        LevelUpdate();
         HealthUpdate();
-        ExpUpdate();
-        ManaUpdate();
-    }
-
-    /// <summary>
-    /// 当等级的显示值与实际值不符时, 更新显示
-    /// </summary>
-    private void LevelUpdate()
-    {
-        if (playerAttributes == null || GameUIManager.Instance == null) return;
-        if (level != playerAttributes.level)
-        {
-            level = playerAttributes.level;
-            if (GameUIManager.Instance.level != null) GameUIManager.Instance.level.text = "Lv." + level.ToString();
-        }
+        StaminaUpdate();
     }
 
     /// <summary>
@@ -68,32 +54,26 @@ public class HeadUpDisplayer : MonoBehaviour
     }
 
     /// <summary>
-    /// 当经验的显示值与实际值不符时, 更新显示
+    /// 当体力值的显示值与实际值不符时, 更新显示
     /// </summary>
-    private void ExpUpdate()
+    private void StaminaUpdate()
     {
         if (playerAttributes == null || GameUIManager.Instance == null) return;
-        if (exp != playerAttributes.experience || maxExp != playerAttributes.GetMaxExperience())
+        if (stamina != playerAttributes.CurrentStaminaInt || maxStamina != playerAttributes.MaxStaminaInt)
         {
-            exp = playerAttributes.experience;
-            maxExp = playerAttributes.GetMaxExperience();
-            if (GameUIManager.Instance.expBar != null) GameUIManager.Instance.expBar.value = (float)exp / maxExp;
-            if (GameUIManager.Instance.expText != null) GameUIManager.Instance.expText.text = $"经验：{exp} / {maxExp}";
+            stamina = playerAttributes.CurrentStaminaInt;
+            maxStamina = playerAttributes.MaxStaminaInt;
+            float staminaRatio = maxStamina > 0 ? (float)stamina / maxStamina : 0;
+            if (GameUIManager.Instance.staminaBar != null) GameUIManager.Instance.staminaBar.value = staminaRatio;
+            if (GameUIManager.Instance.staminaText != null) GameUIManager.Instance.staminaText.text = $"体力：{stamina} / {maxStamina}";
+            GameUIManager.Instance.SetStaminaBarColor(GetStaminaColor(staminaRatio));
         }
     }
 
-    /// <summary>
-    /// 当魔法值的显示值与实际值不符时, 更新显示
-    /// </summary>
-    private void ManaUpdate()
+    private Color GetStaminaColor(float ratio)
     {
-        if (playerAttributes == null || GameUIManager.Instance == null) return;
-        if (mana != playerAttributes.mana || maxMana != playerAttributes.MaxMana)
-        {
-            mana = playerAttributes.mana;
-            maxMana = playerAttributes.MaxMana;
-            if (GameUIManager.Instance.manaBar != null) GameUIManager.Instance.manaBar.value = (float)mana / maxMana;
-            if (GameUIManager.Instance.manaText != null) GameUIManager.Instance.manaText.text = $"魔法：{mana} / {maxMana}";
-        }
+        if (ratio <= 0.25f) return staminaLowColor;
+        if (ratio <= 0.55f) return staminaMidColor;
+        return staminaHighColor;
     }
 }

@@ -28,10 +28,13 @@ public class VillageSceneStory : MonoBehaviour
     [Header("对话文件")]
     public DialogConfig dialog_3_0;       // 陌生士兵 - 介绍背景信息
     public DialogConfig dialog_3_1;       // 加雷斯 - 最后的对话
+    public DialogConfig dialog_3_2;       // 梅林 - 显现后的对话
+    public DialogConfig dialog_3_2_common; // 梅林 - 常驻对话
     public DialogConfig dialog_3_board;       //木板 - 交互
     [Header("对话物")]
     public DialogObject strangerSoldierNPC;     // 陌生士兵
     public DialogObject garethNPC;               // 加雷斯
+    public DialogObject merlinNPC;               // 梅林
     [Header("战斗角色")]
     public List<FightAttributes> villageEnemies;    // 村庄中的敌人列表
     public FightAttributes garethLeader;             // 加雷斯
@@ -46,6 +49,7 @@ public class VillageSceneStory : MonoBehaviour
     [Header("物体")]
     public GameObject strangerSoldier;          // 陌生士兵GameObject
     public GameObject gareth;                    // 加雷斯GameObject
+    public GameObject merlin;                    // 梅林GameObject
     public GameObject villageEnemySpawners;     // 敌人生成点
     public GameObject villageTriggerPoint;      // 村庄入口触发点
 
@@ -53,6 +57,8 @@ public class VillageSceneStory : MonoBehaviour
     public Transform mark_strangerSoldier;      // 陌生士兵标记
     public Transform mark_villageEntrance;      // 村庄入口标记
     public Transform mark_gareth;                // 加雷斯标记
+    public Transform mark_merlin;                // 梅林标记
+    public Transform mark_exit_gate;          // 出口大门标记
 
     private StoryListener storyListener = new StoryListener();
     public bool autoPickupStoryDialog = false;
@@ -82,6 +88,11 @@ public class VillageSceneStory : MonoBehaviour
         {
             villageEnemyDeathCount = villageEnemies.Count;
             villageEnemyKilledCount = 0;
+        }
+
+        if (storyProcess < 4 && merlin != null)
+        {
+            merlin.SetActive(false);
         }
 
 
@@ -158,6 +169,11 @@ public class VillageSceneStory : MonoBehaviour
             case 3: // 任务4：和即将死亡的加雷斯聊聊
                 GameUIManager.Instance.mainTaskTip.UpdateTask("和加雷斯聊聊", "去和奄奄一息的加雷斯交谈。");
 
+                if (merlin != null)
+                {
+                    merlin.SetActive(false);
+                }
+
                 // 激活格雷斯
                 if (gareth != null)
                 {
@@ -175,13 +191,27 @@ public class VillageSceneStory : MonoBehaviour
                 GameEventManager.Instance.dialogConfigEndEvent.AddListener(storyListener.StoryProcess3_1);
                 break;
 
-            case 4: // 任务5：继续前进，我只要我需要的东西
-                GameUIManager.Instance.mainTaskTip.UpdateTask("继续前进", "真相是什么，继续冒险。");
+            case 4: // 任务5：继续前进，梅林显现为可选对话
+                GameUIManager.Instance.mainTaskTip.UpdateTask("继续前进", "真相就在前方，前往出口大门。");
 
-                // 设置出口标记
-                if (mark_villageEntrance != null)
+                if (merlin != null)
                 {
-                    GameUIManager.Instance.destinationMark.SetTarget(mark_villageEntrance);
+                    merlin.SetActive(true);
+                }
+
+                if (merlinNPC != null && dialog_3_2 != null)
+                {
+                    merlinNPC.AddSpecialDialog(dialog_3_2);
+                }
+
+                if (merlinNPC != null && dialog_3_2_common != null)
+                {
+                    merlinNPC.SetCommonDialog(dialog_3_2_common);
+                }
+
+                if (mark_exit_gate != null)
+                {
+                    GameUIManager.Instance.destinationMark.SetTarget(mark_exit_gate);
                 }
                 break;
         }
@@ -312,7 +342,7 @@ public class VillageSceneStory : MonoBehaviour
     public void OnVillageEntranceReached()
     {
         Debug.Log($"VillageSceneStory: OnVillageEntranceReached called, storyProcess={storyProcess}");
-        
+
         if (storyProcess != 1)
         {
             Debug.LogWarning($"VillageSceneStory: Story is at process {storyProcess}, expected 1. Ignoring trigger.");
@@ -472,6 +502,16 @@ public class VillageSceneStory : MonoBehaviour
     {
         if (villageExitPosition != null) return villageExitPosition;
         return ResolveBattleGuideTarget();
+    }
+
+    private Transform ResolveMerlinTarget()
+    {
+        if (mark_merlin != null) return mark_merlin;
+        if (merlinNPC != null) return merlinNPC.transform;
+        if (merlin != null) return merlin.transform;
+
+        Debug.LogWarning("VillageSceneStory: no valid Merlin target found.");
+        return null;
     }
 
     private bool IsPlayerInsideExitTrigger()

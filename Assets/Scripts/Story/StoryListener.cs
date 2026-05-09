@@ -469,7 +469,7 @@ public class StoryListener
     {
         if (dialog == VillageSceneStory.Instance.dialog_3_1)
         {
-            Debug.Log("VillageSceneStory: 格雷斯对话完毕 - StoryProcess3_1，推进到任务5");
+            Debug.Log("VillageSceneStory: 格雷斯对话完毕 - StoryProcess3_1，梅林显现并继续前进");
 
             GameEventManager.Instance.dialogConfigEndEvent.RemoveListener(StoryProcess3_1);
             VillageSceneStory.Instance.DriveProcess();

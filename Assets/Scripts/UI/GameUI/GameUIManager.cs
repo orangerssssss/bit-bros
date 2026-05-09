@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.Serialization;
 
 /// <summary>
 /// 游戏UI管理器, 方便对各UI的调用
@@ -27,8 +28,10 @@ public class GameUIManager : MonoBehaviour
     public Slider healthBarSlow;// 玩家慢血条
     public Slider expBar;// 玩家经验条
     public Text expText;
-    public Slider manaBar;
-    public Text manaText;
+    [FormerlySerializedAs("manaBar")]
+    public Slider staminaBar;
+    [FormerlySerializedAs("manaText")]
+    public Text staminaText;
 
     [Header("交互")]
     public GameObject interact;// 交互提示父物体
@@ -81,6 +84,7 @@ public class GameUIManager : MonoBehaviour
     private void Awake()
     {
         InitItemTips();
+        ConfigurePlayerStatusUI();
         // Notify listeners that the UI manager has been initialized
         try
         {
@@ -135,5 +139,26 @@ public class GameUIManager : MonoBehaviour
         if (villageStore.activeSelf) 
             InventoryManager.Instance.VillageStoreActiveSwitch();
         DialogDisplayer.Instance.ExitDialog();
+    }
+
+    public void ConfigurePlayerStatusUI()
+    {
+        if (level != null) level.gameObject.SetActive(false);
+        if (expBar != null) expBar.gameObject.SetActive(false);
+        if (expText != null) expText.gameObject.SetActive(false);
+
+        if (staminaBar != null && staminaBar.fillRect != null)
+        {
+            Image fill = staminaBar.fillRect.GetComponent<Image>();
+            if (fill != null) fill.color = new Color(0.20f, 0.78f, 0.29f);
+        }
+    }
+
+    public void SetStaminaBarColor(Color color)
+    {
+        if (staminaBar == null || staminaBar.fillRect == null) return;
+
+        Image fill = staminaBar.fillRect.GetComponent<Image>();
+        if (fill != null) fill.color = color;
     }
 }
