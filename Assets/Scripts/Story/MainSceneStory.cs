@@ -152,6 +152,13 @@ public class MainSceneStory : MonoBehaviour
 #endif
         }
 
+        // If New Game requested to skip prolog (flag set by MainMenu), advance past the prolog to avoid auto dialog
+        if (DataManager.Instance != null && DataManager.Instance.skipPrologNextLoad)
+        {
+            DataManager.Instance.skipPrologNextLoad = false;
+            storyProcess = 1;
+        }
+
         UpdateStory();
 
         AddSideEvent();

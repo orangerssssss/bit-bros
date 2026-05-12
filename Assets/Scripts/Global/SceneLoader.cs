@@ -253,6 +253,9 @@ public class SceneLoader : MonoBehaviour
             return;
         }
 
+        // Start a short delayed enforcement to avoid race conditions in built players
+        try { StartCoroutine(EnsurePlayerAtSpawnAfterDelay(spawn.transform, 0.12f)); } catch { }
+
         Transform s = spawn.transform;
         // 优先使用 PlayerInputManager 的 moveController
         if (PlayerInputManager.Instance != null && PlayerInputManager.Instance.moveController != null)
@@ -314,6 +317,70 @@ public class SceneLoader : MonoBehaviour
         }
 
         Debug.Log("SceneLoader: no player object found to move to spawn");
+    }
+
+    /// <summary>
+    /// 确保在场景载入后的短延迟后，玩家确实位于 spawn 点 ——
+    /// 用于解决在打包版下可能出现的初始化时序竞争问题。
+    /// 仅在非载入存档情况下执行（以免覆盖存档位置）。
+    /// </summary>
+    private IEnumerator EnsurePlayerAtSpawnAfterDelay(Transform spawn, float delay = 0.12f)
+    {
+        if (spawn == null) yield break;
+
+        yield return new WaitForSeconds(delay);
+
+        // 如果正在从存档恢复位置，则不要覆盖
+        try
+        {
+            if (DataManager.Instance != null && DataManager.Instance.loadSave)
+            {
+                Debug.Log("SceneLoader: skipping spawn enforcement because loadSave==true");
+                yield break;
+            }
+        }
+        catch { }
+
+        // 优先使用 PlayerInputManager.moveController（安全地处理 CharacterController）
+        if (PlayerInputManager.Instance != null && PlayerInputManager.Instance.moveController != null)
+        {
+            try
+            {
+                PlayerInputManager.Instance.moveController.SetPositionAndRotation(spawn);
+                Debug.Log($"SceneLoader: enforced player position to spawn ({spawn.name}) via moveController");
+                yield break;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("SceneLoader: failed to enforce via moveController: " + e.Message);
+            }
+        }
+
+        // 备用：直接移动场景中的 PlayerControl 或 Player
+        GameObject pc = GameObject.Find("PlayerControl");
+        GameObject player = GameObject.Find("Player");
+
+        if (pc != null)
+        {
+            var cc = player != null ? player.GetComponent<CharacterController>() : null;
+            if (cc != null) cc.enabled = false;
+            pc.transform.SetPositionAndRotation(spawn.position, spawn.rotation);
+            if (cc != null) cc.enabled = true;
+            Debug.Log($"SceneLoader: enforced PlayerControl to spawn ({spawn.name})");
+            yield break;
+        }
+
+        if (player != null)
+        {
+            var cc = player.GetComponent<CharacterController>();
+            if (cc != null) cc.enabled = false;
+            player.transform.SetPositionAndRotation(spawn.position, spawn.rotation);
+            if (cc != null) cc.enabled = true;
+            Debug.Log($"SceneLoader: enforced Player to spawn ({spawn.name})");
+            yield break;
+        }
+
+        Debug.Log("SceneLoader: could not enforce spawn; no player object or moveController found");
     }
 
     private IEnumerator ReenableWeaponsDelayed(float delay)

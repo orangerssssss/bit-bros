@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Collections;
 using UnityEngine;
 using Cinemachine;
 using UnityEngine.SceneManagement;
@@ -14,6 +15,9 @@ public class PlayerSpawner : MonoBehaviour
         
         // Set camera target setelah Player dipindah
         SetCameraTarget();
+        // Start a short delayed enforcement to handle cases where other systems
+        // (timelines, persistent objects) might overwrite the initial spawn position.
+        try { StartCoroutine(EnforceSpawnAfterDelay(0.12f)); } catch { }
     }
     
     void MovePlayerToSpawn()
@@ -72,6 +76,55 @@ public class PlayerSpawner : MonoBehaviour
 
             if (cc != null) cc.enabled = true;
         }
+    }
+
+    private IEnumerator EnforceSpawnAfterDelay(float delay)
+    {
+        if (spawnPoint == null) yield break;
+
+        yield return new WaitForSeconds(delay);
+
+        // Don't override a saved position when loading from save
+        try
+        {
+            if (DataManager.Instance != null && DataManager.Instance.loadSave)
+            {
+                Debug.Log("PlayerSpawner: skipping enforcement because loadSave==true");
+                yield break;
+            }
+        }
+        catch { }
+
+        GameObject player = GameObject.Find("Player");
+        GameObject playerControl = GameObject.Find("PlayerControl");
+
+        if (player == null || playerControl == null)
+        {
+            Debug.Log("PlayerSpawner: cannot enforce spawn - Player or PlayerControl missing");
+            yield break;
+        }
+
+        var moveCtrl = player.GetComponent<PlayerMoveController>();
+        if (moveCtrl != null)
+        {
+            try
+            {
+                moveCtrl.SetPositionAndRotation(spawnPoint);
+                Debug.Log("PlayerSpawner: enforced spawn via PlayerMoveController");
+                yield break;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("PlayerSpawner: failed to enforce via moveController: " + e.Message);
+            }
+        }
+
+        var cc = player.GetComponent<CharacterController>();
+        if (cc != null) cc.enabled = false;
+        playerControl.transform.SetPositionAndRotation(spawnPoint.position, spawnPoint.rotation);
+        if (cc != null) cc.enabled = true;
+
+        Debug.Log("PlayerSpawner: enforced spawn via PlayerControl transform");
     }
 
     private void SetLayerRecursive(GameObject go, int layer)

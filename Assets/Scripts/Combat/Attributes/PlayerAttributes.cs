@@ -257,6 +257,8 @@ public class PlayerAttributes : CharacterAttributes
             //RecalculateAttributes();
         }
 
+        Debug.Log($"PlayerAttributes.Init: loadSave={DataManager.Instance?.loadSave}, Constitution={Constitution}, Strength={Strength}, Intelligence={Intelligence}");
+
         EnsureMinimumTestHealth();
         InitAttributes();
         
@@ -301,6 +303,7 @@ public class PlayerAttributes : CharacterAttributes
         mana = MaxMana;
         stamina = maxStamina;
         staminaRecoverCooldown = 0;
+        Debug.Log($"PlayerAttributes.InitAttributes: health={health}/{MaxHealth}, stamina={stamina}/{maxStamina}");
         var ccm = CombatCharacterManager.Instance;
         if (ccm != null)
             ccm.Register(this);

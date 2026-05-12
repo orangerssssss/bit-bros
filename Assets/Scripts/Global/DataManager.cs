@@ -31,6 +31,8 @@ public class DataManager : MonoBehaviour
 
     public bool hasSave = false; // 是否有存在的存档文件，用于判断能否继续游戏
     public bool loadSave = false;// 是否读取存档文件，用于游戏中数据的加载
+    // When true, the next scene load should skip the story/prolog UI (StorySetting)
+    public bool skipPrologNextLoad = false;
 
     private string saveFileName = "/ArthurGameData.dat";
 

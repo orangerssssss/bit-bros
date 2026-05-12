@@ -62,7 +62,12 @@ public class MainMenu : MonoBehaviour
     /// </summary>
     public void NewGame()
     {
-        DataManager.Instance.loadSave = false;
+        // Mark as a new game and request skipping the BirthScene prolog UI
+        if (DataManager.Instance != null)
+        {
+            DataManager.Instance.NewGame();
+            DataManager.Instance.skipPrologNextLoad = true;
+        }
         SceneLoader.instance.LoadScene("BirthScene", true);
     }
 

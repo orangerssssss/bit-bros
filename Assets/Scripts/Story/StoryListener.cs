@@ -467,12 +467,41 @@ public class StoryListener
     /// </summary>
     public void StoryProcess3_1(DialogConfig dialog)
     {
-        if (dialog == VillageSceneStory.Instance.dialog_3_1)
+        if (dialog == null)
+        {
+            Debug.LogWarning("StoryProcess3_1 called with null dialog");
+            return;
+        }
+
+        var vs = VillageSceneStory.Instance;
+        if (vs == null)
+        {
+            Debug.LogWarning("StoryProcess3_1: VillageSceneStory.Instance is null");
+            return;
+        }
+
+        if (vs.dialog_3_1 == null)
+        {
+            Debug.LogWarning("StoryProcess3_1: dialog_3_1 not assigned on " + vs.name);
+            return;
+        }
+
+        if (dialog == vs.dialog_3_1)
         {
             Debug.Log("VillageSceneStory: 格雷斯对话完毕 - StoryProcess3_1，梅林显现并继续前进");
-
-            GameEventManager.Instance.dialogConfigEndEvent.RemoveListener(StoryProcess3_1);
-            VillageSceneStory.Instance.DriveProcess();
+            var gem = GameEventManager.Instance;
+            if (gem != null)
+            {
+                try
+                {
+                    gem.dialogConfigEndEvent.RemoveListener(StoryProcess3_1);
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogWarning("StoryProcess3_1: failed to remove listener: " + e.Message);
+                }
+            }
+            vs.DriveProcess();
         }
     }
 }
