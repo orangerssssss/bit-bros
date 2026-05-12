@@ -18,6 +18,12 @@ public class SceneLoader : MonoBehaviour
     [SerializeField]
     private Slider slider;// 加载界面进度条
 
+    // If we create runtime UI because inspector refs were missing
+    private bool runtimeCreatedLoadUI = false;
+
+    // Temp transforms created to pass into SetPositionAndRotation (keep alive until reposition finish)
+    private List<GameObject> tempSpawnTransforms = new List<GameObject>();
+
     private float targetValue;// 加载值
 
     private float currentVelocity;
@@ -40,7 +46,7 @@ public class SceneLoader : MonoBehaviour
     private void Update()
     {
         // 平滑过渡进度条值为加载值
-        if (loadPanel)
+        if (loadPanel && slider != null)
         {
             slider.value = Mathf.SmoothDamp(slider.value, targetValue, ref currentVelocity, 0.15f);
         }
@@ -69,8 +75,39 @@ public class SceneLoader : MonoBehaviour
     /// <param name="sceneName">场景名</param>
     private IEnumerator AsyncLoader(string sceneName)
     {
-        // 显示界面
-        loadPanel.SetActive(true);
+        // 显示界面（如果已配置），或者在运行时创建简单的 loading UI 作为后备
+        if (loadPanel != null)
+        {
+            loadPanel.SetActive(true);
+        }
+        else
+        {
+            Debug.LogWarning("SceneLoader: loadPanel not assigned, creating runtime loading UI fallback.");
+            // Create minimal Canvas + Panel + Slider so player sees loading feedback
+            GameObject canvasGO = new GameObject("RuntimeLoadCanvas");
+            var canvas = canvasGO.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvasGO.AddComponent<UnityEngine.UI.CanvasScaler>();
+            canvasGO.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+
+            GameObject panel = new GameObject("RuntimeLoadPanel");
+            panel.transform.SetParent(canvasGO.transform, false);
+            var img = panel.AddComponent<UnityEngine.UI.Image>();
+            img.color = new Color(0f, 0f, 0f, 0.85f);
+            var prt = panel.GetComponent<RectTransform>();
+            prt.anchorMin = Vector2.zero; prt.anchorMax = Vector2.one; prt.offsetMin = Vector2.zero; prt.offsetMax = Vector2.zero;
+
+            GameObject sliderGO = new GameObject("RuntimeLoadSlider");
+            sliderGO.transform.SetParent(panel.transform, false);
+            var runtimeSlider = sliderGO.AddComponent<UnityEngine.UI.Slider>();
+            var srt = sliderGO.GetComponent<RectTransform>();
+            srt.anchorMin = new Vector2(0.1f, 0.06f); srt.anchorMax = new Vector2(0.9f, 0.12f); srt.offsetMin = Vector2.zero; srt.offsetMax = Vector2.zero;
+
+            // Keep references
+            loadPanel = canvasGO;
+            slider = runtimeSlider;
+            runtimeCreatedLoadUI = true;
+        }
 
         yield return new WaitForSeconds(0.5f);
 
@@ -97,6 +134,7 @@ public class SceneLoader : MonoBehaviour
             }
             yield return null;
         }
+
         yield return new WaitForSeconds(0.3f);
 
         // 允许跳转
@@ -105,16 +143,108 @@ public class SceneLoader : MonoBehaviour
 
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        // 载入后关闭界面并初始化数值
-        loadPanel.SetActive(false);
-        slider.value = 0;
+        // 载入后关闭界面并初始化数值（如果已配置）
+        if (loadPanel != null) loadPanel.SetActive(false);
+        if (slider != null) slider.value = 0;
         targetValue = 0;
+
+        // If we created runtime UI, destroy it now
+        if (runtimeCreatedLoadUI && loadPanel != null)
+        {
+            Destroy(loadPanel);
+            loadPanel = null;
+            slider = null;
+            runtimeCreatedLoadUI = false;
+        }
         // 尝试将持久化的Player移动到场景中的SpawnPoint/RespawnPoint
         TryMovePersistentPlayerToSpawn();
+
+        // Clean up any temporary transforms created to assist SetPositionAndRotation
+        if (tempSpawnTransforms.Count > 0)
+        {
+            StartCoroutine(CleanupTempSpawnTransforms());
+        }
+    }
+
+    private IEnumerator CleanupTempSpawnTransforms()
+    {
+        yield return new WaitForSeconds(0.5f);
+        foreach (var go in tempSpawnTransforms)
+        {
+            if (go != null) Destroy(go);
+        }
+        tempSpawnTransforms.Clear();
     }
 
     private void TryMovePersistentPlayerToSpawn()
     {
+        // Do not move persistent player into UI/menu scenes
+        try
+        {
+            string sceneName = SceneManager.GetActiveScene().name;
+            if (sceneName == "MenuScene")
+            {
+                Debug.Log("SceneLoader: skipping persistent player move for MenuScene");
+                return;
+            }
+        }
+        catch { }
+
+        // If we're loading a saved game and a saved player transform exists, restore it directly
+        try
+        {
+            if (DataManager.Instance != null && DataManager.Instance.loadSave && DataManager.Instance.hasSave && DataManager.Instance.saveData != null && DataManager.Instance.saveData.gameProcessSaveData != null)
+            {
+                var gp = DataManager.Instance.saveData.gameProcessSaveData;
+                if (gp.hasSavedPlayerTransform)
+                {
+                    var savedPos = new Vector3(gp.lastPlayerPosX, gp.lastPlayerPosY, gp.lastPlayerPosZ);
+                    var savedRot = new Quaternion(gp.lastPlayerRotX, gp.lastPlayerRotY, gp.lastPlayerRotZ, gp.lastPlayerRotW);
+
+                    if (PlayerInputManager.Instance != null && PlayerInputManager.Instance.moveController != null)
+                    {
+                        GameObject tmp = new GameObject("SavedSpawnTransform");
+                        tmp.transform.SetPositionAndRotation(savedPos, savedRot);
+                        PlayerInputManager.Instance.moveController.SetPositionAndRotation(tmp.transform);
+                        tempSpawnTransforms.Add(tmp);
+                        Debug.Log("SceneLoader: moved persistent player to saved position via DataManager save data");
+                        // ensure weapon visible and camera
+                        if (PlayerInputManager.Instance.combatController != null)
+                        {
+                            PlayerInputManager.Instance.combatController.SetWeaponVisible(true);
+                            StartCoroutine(ReenableWeaponsDelayed(0.2f));
+                        }
+                        TryInitializeCameraForPlayer(PlayerInputManager.Instance.viewController, GameObject.Find("PlayerControl"), GameObject.Find("Player"));
+                        return;
+                    }
+                    // fallback: move scene PlayerControl or Player directly
+                    var scenePc = GameObject.Find("PlayerControl");
+                    var scenePlayer = GameObject.Find("Player");
+                    if (scenePc != null)
+                    {
+                        var cc = scenePlayer != null ? scenePlayer.GetComponent<CharacterController>() : null;
+                        if (cc != null) cc.enabled = false;
+                        scenePc.transform.SetPositionAndRotation(savedPos, savedRot);
+                        if (cc != null) cc.enabled = true;
+                        Debug.Log("SceneLoader: moved PlayerControl to saved position via DataManager save data");
+                        TryInitializeCameraForPlayer(PlayerInputManager.Instance != null ? PlayerInputManager.Instance.viewController : scenePc.GetComponentInChildren<ViewController>(), scenePc, scenePlayer);
+                        return;
+                    }
+                    if (scenePlayer != null)
+                    {
+                        var cc = scenePlayer.GetComponent<CharacterController>();
+                        if (cc != null) cc.enabled = false;
+                        scenePlayer.transform.SetPositionAndRotation(savedPos, savedRot);
+                        if (cc != null) cc.enabled = true;
+                        Debug.Log("SceneLoader: moved Player to saved position via DataManager save data");
+                        TryInitializeCameraForPlayer(PlayerInputManager.Instance != null ? PlayerInputManager.Instance.viewController : scenePlayer.GetComponentInChildren<ViewController>(), pc: null, player: scenePlayer);
+                        return;
+                    }
+                }
+            }
+        }
+        catch { }
+
         // 尝试寻找常见的重生/出生点对象名
         GameObject spawn = GameObject.Find("SpawnPoint") ?? GameObject.Find("RespawnPoint") ?? GameObject.Find("PlayerSpawn");
         if (spawn == null)
@@ -153,23 +283,7 @@ public class SceneLoader : MonoBehaviour
             pc.transform.SetPositionAndRotation(s.position, s.rotation);
             if (cc != null) cc.enabled = true;
             Debug.Log($"SceneLoader: moved PlayerControl to spawn ({spawn.name})");
-            // Try to re-enable weapon on player
-            if (PlayerInputManager.Instance != null && PlayerInputManager.Instance.combatController != null)
-            {
-                PlayerInputManager.Instance.combatController.SetWeaponVisible(true);
-                StartCoroutine(ReenableWeaponsDelayed(0.2f));
-            }
-            else
-            {
-                var pcCombat = pc.GetComponentInChildren<PlayerCombatController>();
-                if (pcCombat != null)
-                {
-                    pcCombat.SetWeaponVisible(true);
-                    StartCoroutine(ReenableWeaponsDelayed(0.2f));
-                }
-            }
-
-            // Re-init view controller and rewire Cinemachine to follow player
+                // Try to re-enable weapon on player
             TryInitializeCameraForPlayer(PlayerInputManager.Instance != null ? PlayerInputManager.Instance.viewController : pc.GetComponentInChildren<ViewController>(), pc, player);
             return;
         }
@@ -216,6 +330,68 @@ public class SceneLoader : MonoBehaviour
         {
             pc.SetWeaponVisible(true);
             Debug.Log("SceneLoader: Reenabled weapon visibility after delay");
+        }
+    }
+
+    private IEnumerator RestoreSavedPlayerPosition(Vector3 savedPos, Quaternion savedRot)
+    {
+        // Wait until PlayerInputManager and its controllers are initialized (or timeout)
+        int attempts = 0;
+        while ((PlayerInputManager.Instance == null || PlayerInputManager.Instance.moveController == null) && attempts < 120)
+        {
+            attempts++;
+            yield return null;
+        }
+
+        // If moveController is available, use it to set position safely
+        if (PlayerInputManager.Instance != null && PlayerInputManager.Instance.moveController != null)
+        {
+            GameObject tmp = new GameObject("SavedSpawnTransform");
+            tmp.transform.SetPositionAndRotation(savedPos, savedRot);
+            tempSpawnTransforms.Add(tmp);
+
+            // Set position using moveController helper which handles CharacterController enable/disable
+            PlayerInputManager.Instance.moveController.SetPositionAndRotation(tmp.transform);
+
+            // small delay to let CharacterController re-enable and systems initialize
+            yield return new WaitForSeconds(0.12f);
+
+            // Ensure weapon and camera are initialized
+            if (PlayerInputManager.Instance.combatController != null)
+            {
+                try { PlayerInputManager.Instance.combatController.SetWeaponVisible(true); } catch { }
+                StartCoroutine(ReenableWeaponsDelayed(0.2f));
+            }
+
+            TryInitializeCameraForPlayer(PlayerInputManager.Instance.viewController, GameObject.Find("PlayerControl"), GameObject.Find("Player"));
+
+            // Re-enable player input and UI state
+            try { PlayerInputManager.Instance.OpenAllInput(); } catch { }
+            yield break;
+        }
+
+        // Fallback: directly move objects in scene if moveController not available
+        var scenePc = GameObject.Find("PlayerControl");
+        var scenePlayer = GameObject.Find("Player");
+        if (scenePc != null)
+        {
+            var cc = scenePlayer != null ? scenePlayer.GetComponent<CharacterController>() : null;
+            if (cc != null) cc.enabled = false;
+            scenePc.transform.SetPositionAndRotation(savedPos, savedRot);
+            if (cc != null) cc.enabled = true;
+            TryInitializeCameraForPlayer(PlayerInputManager.Instance != null ? PlayerInputManager.Instance.viewController : scenePc.GetComponentInChildren<ViewController>(), scenePc, scenePlayer);
+            if (PlayerInputManager.Instance != null) try { PlayerInputManager.Instance.OpenAllInput(); } catch { }
+            yield break;
+        }
+        if (scenePlayer != null)
+        {
+            var cc = scenePlayer.GetComponent<CharacterController>();
+            if (cc != null) cc.enabled = false;
+            scenePlayer.transform.SetPositionAndRotation(savedPos, savedRot);
+            if (cc != null) cc.enabled = true;
+            TryInitializeCameraForPlayer(PlayerInputManager.Instance != null ? PlayerInputManager.Instance.viewController : scenePlayer.GetComponentInChildren<ViewController>(), null, scenePlayer);
+            if (PlayerInputManager.Instance != null) try { PlayerInputManager.Instance.OpenAllInput(); } catch { }
+            yield break;
         }
     }
 

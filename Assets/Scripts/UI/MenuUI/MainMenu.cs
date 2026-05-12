@@ -63,7 +63,7 @@ public class MainMenu : MonoBehaviour
     public void NewGame()
     {
         DataManager.Instance.loadSave = false;
-        SceneLoader.instance.LoadScene("MainScene", true);
+        SceneLoader.instance.LoadScene("BirthScene", true);
     }
 
     /// <summary>
@@ -72,7 +72,13 @@ public class MainMenu : MonoBehaviour
     public void Continue()
     {
         DataManager.Instance.loadSave = true;
-        SceneLoader.instance.LoadScene("MainScene", true);
+        // Load last saved scene if available, otherwise fallback to MainScene
+        string sceneToLoad = "MainScene";
+        if (DataManager.Instance.hasSave && DataManager.Instance.saveData != null && DataManager.Instance.saveData.gameProcessSaveData != null && !string.IsNullOrEmpty(DataManager.Instance.saveData.gameProcessSaveData.lastSceneName))
+        {
+            sceneToLoad = DataManager.Instance.saveData.gameProcessSaveData.lastSceneName;
+        }
+        SceneLoader.instance.LoadScene(sceneToLoad, true);
     }
 
     /// <summary>

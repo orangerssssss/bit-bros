@@ -106,6 +106,29 @@ public class GameMenu : MonoBehaviour
     /// </summary>
     public void ConfirmExit()
     {
+        // Save current game state before returning to main menu so Continue can resume correctly
+        try { DataManager.Instance.SaveGame(); } catch { }
+
+        // Move persistent player out of view so it doesn't appear in the MenuScene
+        try
+        {
+            var pim = PlayerInputManager.Instance;
+            if (pim != null)
+            {
+                pim.CloseAllInput(true);
+                pim.transform.SetPositionAndRotation(new Vector3(0, -9999f, 0), Quaternion.identity);
+            }
+            else
+            {
+                var p = GameObject.Find("Player") ?? GameObject.Find("PlayerControl");
+                if (p != null)
+                {
+                    p.transform.SetPositionAndRotation(new Vector3(0, -9999f, 0), Quaternion.identity);
+                }
+            }
+        }
+        catch { }
+
         SceneLoader.instance.LoadScene("MenuScene", true);
     }
 

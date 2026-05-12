@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// 跨场景游戏数据管理器
@@ -69,6 +70,21 @@ public class DataManager : MonoBehaviour
             saveData.playerSaveData.attributePoints = player.AttributePoints;
             saveData.playerSaveData.level = player.level;
             saveData.playerSaveData.experience = player.experience;
+
+            // Save player transform so Continue can restore exact position
+            try
+            {
+                var gp = saveData.gameProcessSaveData;
+                gp.hasSavedPlayerTransform = true;
+                gp.lastPlayerPosX = player.transform.position.x;
+                gp.lastPlayerPosY = player.transform.position.y;
+                gp.lastPlayerPosZ = player.transform.position.z;
+                gp.lastPlayerRotX = player.transform.rotation.x;
+                gp.lastPlayerRotY = player.transform.rotation.y;
+                gp.lastPlayerRotZ = player.transform.rotation.z;
+                gp.lastPlayerRotW = player.transform.rotation.w;
+            }
+            catch { }
         }
 
         // Inventory
@@ -97,6 +113,13 @@ public class DataManager : MonoBehaviour
         {
             saveData.gameProcessSaveData.storyProcess = ImaginationSceneStory.Instance.storyProcess;
         }
+
+        // Save current scene name so Continue can return to it
+        try
+        {
+            saveData.gameProcessSaveData.lastSceneName = SceneManager.GetActiveScene().name;
+        }
+        catch { }
 
         SerializeSaveData();
 

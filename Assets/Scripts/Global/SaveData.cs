@@ -46,6 +46,16 @@ public class InventorySaveData
 public class GameProcessSaveData
 {
     public int storyProcess;
+    public string lastSceneName;
+    // Saved player transform for Continue
+    public bool hasSavedPlayerTransform = false;
+    public float lastPlayerPosX;
+    public float lastPlayerPosY;
+    public float lastPlayerPosZ;
+    public float lastPlayerRotX;
+    public float lastPlayerRotY;
+    public float lastPlayerRotZ;
+    public float lastPlayerRotW;
 }
 
 [System.Serializable]
