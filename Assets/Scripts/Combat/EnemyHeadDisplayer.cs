@@ -20,6 +20,10 @@ public class EnemyHeadDisplayer : MonoBehaviour
     private Slider healthBar;// 快血条(立即变化)
     [SerializeField]
     private Slider healthBarSlow;// 慢血条(缓慢过渡)
+    [SerializeField]
+    private Vector3 defaultStateScale = Vector3.one;
+    [SerializeField]
+    private float bossStateScaleMultiplier = 1.6f;
 
     private float targetValue;// 血条目标值, 用于慢血条过渡至目标值
     private float showTimer;// 显示时间计时器
@@ -32,6 +36,7 @@ public class EnemyHeadDisplayer : MonoBehaviour
 
     private void Start()
     {
+        ApplyStateScale();
         InitState();
     }
 
@@ -61,6 +66,8 @@ public class EnemyHeadDisplayer : MonoBehaviour
     /// </summary>
     public void InitState()
     {
+        ApplyStateScale();
+
         // 血条初始化
         healthBar.value = 1.0f;
         healthBarSlow.value = 1.0f;
@@ -89,5 +96,26 @@ public class EnemyHeadDisplayer : MonoBehaviour
     public void HideState()
     {
         state.SetActive(false);
+    }
+
+    private void ApplyStateScale()
+    {
+        if (state == null)
+        {
+            return;
+        }
+
+        Vector3 scale = defaultStateScale;
+        if (scale == Vector3.zero)
+        {
+            scale = Vector3.one;
+        }
+
+        if (GetComponent<FightAIKingBoss>() != null)
+        {
+            scale *= Mathf.Max(1.0f, bossStateScaleMultiplier);
+        }
+
+        state.transform.localScale = scale;
     }
 }

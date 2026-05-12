@@ -22,8 +22,8 @@ public class PlayerMoveController : MonoBehaviour
     private Quaternion targetRotation;
     private float playerRotateLerpSpeed = 0.1f;// 玩家旋转平滑过渡速度
 
-    public float baseWalkSpeed = 3.0f;// 玩家走路速度
-    public float baseRunSpeed = 8.0f;// 玩家奔跑速度
+    public float baseWalkSpeed = 18.0f;// 玩家走路速度
+    public float baseRunSpeed = 45.0f;// 玩家奔跑速度
     //[SerializeField]
     //private float jumpSpeed = 10.0f;// 玩家跳跃速度
     

@@ -114,7 +114,12 @@ public class PlayerSkill_CommonAttack : MonoBehaviour
     {
         if (playerAttributes == null || playerAttributes.health <= 0) return;
 
-        if (attackBox.AreaDamage(playerAttributes.PhysicalAttack, true))
+        // CharacterAttributes.ResistDamage uses attack * attack, so keep test damage below int overflow range.
+        int playerDamage = Mathf.Clamp(
+            Mathf.RoundToInt(playerAttributes.PhysicalAttack * playerAttributes.testDamageMultiplier),
+            1,
+            40000);
+        if (attackBox.AreaDamage(playerDamage, true))
         {
             // Play hit SFX on dedicated hit AudioSource if available, otherwise fallback to combatAudioSource
             AudioSource hitSrc = null;
