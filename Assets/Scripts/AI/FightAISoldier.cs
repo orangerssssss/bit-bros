@@ -8,6 +8,8 @@ using UnityEngine.AI;
 /// </summary>
 public class FightAISoldier : FightAI
 {
+    private const float TestEnemyMoveSpeedMultiplier = 1.45f;
+    private const float TestEnemyAttackIntervalMultiplier = 0.6f;
     private static Transform player;// 玩家
     private Rigidbody rb;
     private CharacterController charController;
@@ -78,6 +80,11 @@ public class FightAISoldier : FightAI
     {
         base.InitFightAI();
 
+        chaseSpeed = Mathf.Max(chaseSpeed * TestEnemyMoveSpeedMultiplier, 5.0f);
+        fallbackMoveSpeed = Mathf.Max(fallbackMoveSpeed * TestEnemyMoveSpeedMultiplier, 1.6f);
+        fallbackRunSpeed = Mathf.Max(fallbackRunSpeed * TestEnemyMoveSpeedMultiplier, 5.5f);
+        fightStateInterval = Mathf.Max(0.08f, fightStateInterval * 0.7f);
+        attackInterval = Mathf.Max(0.2f, attackInterval * TestEnemyAttackIntervalMultiplier);
         if (player == null) player = GameObject.FindGameObjectWithTag("Player").transform;
 
         // 设置 NavMeshAgent 的速度（如果 agent 可用）
@@ -603,7 +610,7 @@ public class FightAISoldier : FightAI
                         Debug.Log($"{name} FightAISoldier: Triggering Attack (in FallbackAction)");
                         TriggerAttackParameter();
                         // schedule fallback damage in case the Slash animation clip doesn't have AttackEvent
-                        ScheduleAttackFallback(fallbackAttackDelay, () =>
+                        ScheduleAttackFallback(attackFallbackDelaySeconds, () =>
                         {
                             if (attackBox != null && fightAttributes != null)
                             {
@@ -995,5 +1002,12 @@ public class FightAISoldier : FightAI
 
             yield return new WaitForSeconds(navRetryInterval);
         }
+    }
+
+    public void ApplyFinalSceneMinionTuning(float newDamageMultiplier, float newAttackIntervalMultiplier)
+    {
+        damageMultiplier = Mathf.Clamp(newDamageMultiplier, 0.1f, 2.0f);
+        attackInterval = Mathf.Max(0.25f, attackInterval * Mathf.Clamp(newAttackIntervalMultiplier, 0.5f, 3.0f));
+        attackTimer = Mathf.Min(attackTimer, attackInterval);
     }
 }

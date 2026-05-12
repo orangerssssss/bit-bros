@@ -8,13 +8,16 @@ using UnityEngine.SceneManagement;
 /// </summary>
 public class PlayerAttributes : CharacterAttributes
 {
+    private const int TestMinimumMaxHealth = 400;
+
     private Animator animator;// 动画组件
     private bool animatorLoggedMissing = false;
     private bool animatorControllerLoggedMissing = false;
 
     public int pointsPerLevel = 2;
-    public float moveSpeedMultiplier = 1.0f;// 移动速度
-    public float commonAttackSpeed = 1.75f;// 攻击速度
+    public float testDamageMultiplier = 2.5f;
+    public float moveSpeedMultiplier = 10.0f;// 移动速度
+    public float commonAttackSpeed = 2.45f;// 攻击速度
     public float sprintStaminaCostPerSecond = 7.2f;
     public float dodgeStaminaCost = 22.4f;
     public float commonAttackStaminaCost = 9.6f;
@@ -254,10 +257,26 @@ public class PlayerAttributes : CharacterAttributes
             //RecalculateAttributes();
         }
 
+        EnsureMinimumTestHealth();
         InitAttributes();
         
         // 注册场景加载事件，进入新场景时恢复血量满
         SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    private void EnsureMinimumTestHealth()
+    {
+        if (MaxHealth >= TestMinimumMaxHealth)
+        {
+            return;
+        }
+
+        int missingHealth = TestMinimumMaxHealth - MaxHealth;
+        int needConstitution = Mathf.CeilToInt(missingHealth / 16.0f);
+        if (needConstitution > 0)
+        {
+            Constitution += needConstitution;
+        }
     }
 
     /// <summary>

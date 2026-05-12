@@ -164,9 +164,69 @@ public class DialogDisplayer : MonoBehaviour
         // Fallback: jika UI tombol tidak merespon, izinkan klik kiri atau Space/Enter untuk lanjutkan dialog
         if (isDialog)
         {
-            if (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return))
+            bool hasVisibleOptions = false;
+            if (optionLabel != null)
+            {
+                for (int i = 0; i < optionLabel.childCount; i++)
+                {
+                    if (optionLabel.GetChild(i).gameObject.activeSelf)
+                    {
+                        hasVisibleOptions = true;
+                        break;
+                    }
+                }
+            }
+
+            if (hasVisibleOptions)
+            {
+                if (Input.GetMouseButtonDown(0))
+                {
+                    TrySelectOptionByMouse();
+                }
+
+                if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1))
+                {
+                    OptionSelect(0);
+                }
+                else if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2))
+                {
+                    OptionSelect(1);
+                }
+            }
+            else if (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return))
             {
                 DialogNext();
+            }
+        }
+    }
+
+    private void TrySelectOptionByMouse()
+    {
+        if (optionLabel == null || dialogConfig == null || dialogConfig.nextDialog == null)
+        {
+            return;
+        }
+
+        Camera uiCamera = null;
+        Canvas canvas = optionLabel.GetComponentInParent<Canvas>();
+        if (canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay)
+        {
+            uiCamera = canvas.worldCamera;
+        }
+
+        for (int i = 0; i < dialogConfig.nextDialog.Count && i < optionLabel.childCount; i++)
+        {
+            GameObject optionObject = optionLabel.GetChild(i).gameObject;
+            if (!optionObject.activeInHierarchy)
+            {
+                continue;
+            }
+
+            RectTransform rectTransform = optionObject.GetComponent<RectTransform>();
+            if (rectTransform != null && RectTransformUtility.RectangleContainsScreenPoint(rectTransform, Input.mousePosition, uiCamera))
+            {
+                OptionSelect(i);
+                return;
             }
         }
     }

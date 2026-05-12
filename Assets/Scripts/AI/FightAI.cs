@@ -40,7 +40,7 @@ public abstract class FightAI : MonoBehaviour
     [Tooltip("Fallback delay (seconds) to apply damage if the animation clip does not contain an AttackEvent."
         + " Set higher for longer attack animations.")]
     [SerializeField]
-    protected float fallbackAttackDelay = 0.35f;
+    protected float attackFallbackDelaySeconds = 0.35f;
 
     // runtime attack event tracking for fallback
     protected bool attackEventFired = false;
@@ -134,7 +134,7 @@ public abstract class FightAI : MonoBehaviour
     }
 
     /// <summary>
-    /// Schedule a fallback attack callback to run after <see cref="fallbackAttackDelay"/>
+    /// Schedule a fallback attack callback to run after <see cref="attackFallbackDelaySeconds"/>
     /// if the animation's AttackEvent was not invoked.
     /// </summary>
     /// <param name="delay">Delay in seconds to wait before fallback action</param>
@@ -460,9 +460,16 @@ public abstract class FightAI : MonoBehaviour
     public virtual void GetDamageReact()
     {
         // 播放受伤粒子效果
-        damageParticle.Play();
-        damageSFX.Stop();
-        damageSFX.Play();
+        if (damageParticle != null)
+        {
+            damageParticle.Play();
+        }
+
+        if (damageSFX != null)
+        {
+            damageSFX.Stop();
+            damageSFX.Play();
+        }
     }
 
     /// <summary>
