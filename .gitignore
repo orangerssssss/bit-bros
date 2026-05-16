@@ -12,6 +12,7 @@
 .vs/
 .vscode/
 *.csproj
+*.csproj.lscache
 *.unityproj
 *.sln
 *.suo
